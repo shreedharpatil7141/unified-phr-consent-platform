@@ -1,0 +1,26 @@
+# Environment variables
+.env
+backend/.env
+
+# Flutter
+frontend/patient-app/build/
+frontend/patient-app/.dart_tool/
+frontend/patient-app/.packages
+frontend/patient-app/.flutter-plugins
+frontend/patient-app/.flutter-plugins-dependencies
+
+# Android
+frontend/patient-app/android/.gradle/
+frontend/patient-app/android/local.properties
+
+# iOS
+frontend/patient-app/ios/Pods/
+frontend/patient-app/ios/.symlinks/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
