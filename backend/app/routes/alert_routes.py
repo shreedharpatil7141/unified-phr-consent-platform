@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from app.config.database import db
-from app.core.role_checker import require_role
+from app.core.dependencies import require_role
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 

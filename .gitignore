@@ -1,26 +1,48 @@
-# Environment variables
-.env
-backend/.env
-
 # Flutter
-frontend/patient-app/build/
-frontend/patient-app/.dart_tool/
-frontend/patient-app/.packages
-frontend/patient-app/.flutter-plugins
-frontend/patient-app/.flutter-plugins-dependencies
+.dart_tool/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+.packages
+pubspec.lock
 
 # Android
-frontend/patient-app/android/.gradle/
-frontend/patient-app/android/local.properties
+android/.gradle/
+android/local.properties
+android/app/build/
 
 # iOS
-frontend/patient-app/ios/Pods/
-frontend/patient-app/ios/.symlinks/
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/App.framework
 
-# Python
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Logs
+*.log
+*.tmp
+
+# Secrets
+.env
+.env.local
+secrets.json
+config/secrets.dart
+
+# Python backend
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
 
-# OS files
-.DS_Store
-Thumbs.db
+# Large / generated files
+*.apk
+*.aab
+*.keystore

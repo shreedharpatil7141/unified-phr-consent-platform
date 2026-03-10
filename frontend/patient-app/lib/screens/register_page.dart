@@ -1,25 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:health1/main.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
-import 'consent_screen.dart';
-import 'register_page.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _RegisterPageState extends State<RegisterPage> {
 
+  final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
   bool loading = false;
 
-  void login() async {
+  void register() async {
 
     setState(() {
       loading = true;
@@ -27,33 +24,24 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
 
-      var response = await ApiService.login(
-        emailController.text,
-        passwordController.text
+      await ApiService.register(
+        nameController.text.trim(),
+        emailController.text.trim(),
+        passwordController.text.trim(),
       );
 
-      if(response["access_token"] != null){
-
-        String token = response["access_token"];
-
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString("token", token);
-
-        if(!mounted) return;
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const MainScreen(),
-          ),
-        );
-
-      }
-
-    } catch(e) {
+      if(!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Login Failed"))
+        const SnackBar(content: Text("Registration Successful"))
+      );
+
+      Navigator.pop(context);
+
+    } catch(e){
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Registration Failed"))
       );
 
     }
@@ -65,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   @override
-  Widget build(BuildContext context){
+  Widget build(BuildContext context) {
 
     return Scaffold(
 
@@ -107,7 +95,7 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
 
                     const Icon(
-                      Icons.health_and_safety,
+                      Icons.person_add,
                       size: 60,
                       color: Colors.blue,
                     ),
@@ -115,7 +103,7 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height:10),
 
                     const Text(
-                      "HealthSync",
+                      "Create Account",
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold
@@ -123,6 +111,19 @@ class _LoginPageState extends State<LoginPage> {
                     ),
 
                     const SizedBox(height:20),
+
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: "Name",
+                        prefixIcon: const Icon(Icons.person),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height:15),
 
                     TextField(
                       controller: emailController,
@@ -156,7 +157,7 @@ class _LoginPageState extends State<LoginPage> {
 
                       child: ElevatedButton(
 
-                        onPressed: loading ? null : login,
+                        onPressed: loading ? null : register,
 
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -168,7 +169,7 @@ class _LoginPageState extends State<LoginPage> {
                         child: loading
                         ? const CircularProgressIndicator(color: Colors.white)
                         : const Text(
-                            "Login",
+                            "Register",
                             style: TextStyle(fontSize:16),
                           ),
 
@@ -177,27 +178,11 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height:10),
 
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-
-                        const Text("New user?"),
-
-                        TextButton(
-                          onPressed: () {
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const RegisterPage(),
-                              ),
-                            );
-
-                          },
-                          child: const Text("Register")
-                        )
-
-                      ],
+                    TextButton(
+                      onPressed: (){
+                        Navigator.pop(context);
+                      },
+                      child: const Text("Already have account? Login")
                     )
 
                   ],

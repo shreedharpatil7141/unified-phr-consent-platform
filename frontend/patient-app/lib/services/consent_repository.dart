@@ -1,52 +1,94 @@
+import '../services/api_service.dart';
 import '../models/consent_model.dart';
 
 class ConsentRepository {
 
-  static final List<Consent> _consents = [
+  static List<Consent> _consents = [];
 
-    Consent(
-      id: "1",
-      doctor: "Dr Mehta",
-      request: "Cardiology Reports",
-      duration: "1 hour",
-      status: "pending",
-    ),
+  //////////////////////////////////////////////////////
+  /// FORMAT CATEGORY NAMES
+  //////////////////////////////////////////////////////
 
-    Consent(
-      id: "2",
-      doctor: "Dr Sharma",
-      request: "Prescription History",
-      duration: "Completed",
-      status: "history",
-    ),
+  static String formatCategories(List categories) {
 
-    Consent(
-      id: "3",
-      doctor: "Dr Rao",
-      request: "Lab Reports",
-      duration: "40 mins",
-      status: "active",
-    ),
+    Map<String,String> names = {
+      "cardiology": "Cardiology",
+      "hematology": "Hematology",
+      "radiology": "Radiology",
+      "lab_reports": "Lab Reports",
+      "prescriptions": "Prescriptions",
+      "vitals": "Vitals"
+    };
 
-  ];
+    return categories
+        .map((c) => names[c] ?? c)
+        .join(", ");
+  }
 
-  static List<Consent> getAll(){
+  //////////////////////////////////////////////////////
+  /// FETCH CONSENTS FROM BACKEND
+  //////////////////////////////////////////////////////
+
+  static Future<List<Consent>> fetchConsents() async {
+
+    final data = await ApiService.getMyConsents();
+
+    if(data == null) {
+      return [];
+    }
+
+    _consents = data.map<Consent>((c) {
+
+      return Consent(
+        id: c["consent_id"].toString(),
+        doctor: c["doctor_id"] ?? "Unknown Doctor",
+        request: formatCategories(c["categories"] ?? []),
+        duration: (c["access_duration_minutes"] ?? 0).toString(),
+        status: c["status"] ?? "pending",
+      );
+
+    }).toList();
+
     return _consents;
   }
 
-  static void approve(String id){
+  //////////////////////////////////////////////////////
+  /// GET ALL CONSENTS (LOCAL CACHE)
+  //////////////////////////////////////////////////////
+
+  static List<Consent> getAll() {
+    return _consents;
+  }
+
+  //////////////////////////////////////////////////////
+  /// APPROVE CONSENT
+  //////////////////////////////////////////////////////
+
+  static Future approve(String id) async {
+
+    await ApiService.approveConsent(id);
 
     final index = _consents.indexWhere((c) => c.id == id);
 
     if(index != -1){
-      _consents[index].status = "active";
+      _consents[index].status = "approved";
     }
 
   }
 
-  static void reject(String id){
+  //////////////////////////////////////////////////////
+  /// REJECT CONSENT
+  //////////////////////////////////////////////////////
 
-    _consents.removeWhere((c) => c.id == id);
+  static Future reject(String id) async {
+
+    await ApiService.rejectConsent(id);
+
+    final index = _consents.indexWhere((c) => c.id == id);
+
+    if(index != -1){
+      _consents[index].status = "rejected";
+    }
 
   }
 

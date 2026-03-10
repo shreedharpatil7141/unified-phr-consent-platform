@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime, timedelta
 from app.config.database import db
-from app.core.role_checker import require_role
+from app.core.dependencies import require_role
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 

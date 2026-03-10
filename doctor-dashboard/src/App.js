@@ -8,30 +8,75 @@ import Patients from "./pages/Patients";
 import ConsentRequests from "./pages/ConsentRequests";
 import Timeline from "./pages/Timeline";
 
+/* NEW AUTH PAGES */
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+
 function App() {
   return (
 
     <Router>
 
-      <Layout>
+      <Routes>
 
-        <Routes>
+        {/* Redirect root to login */}
+        <Route path="/" element={<Navigate to="/login" />} />
 
-          <Route path="/" element={<Navigate to="/dashboard" />} />
+        {/* AUTH ROUTES */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
-          <Route path="/dashboard" element={<Dashboard />} />
+        {/* MAIN DASHBOARD LAYOUT */}
+        <Route
+          path="/dashboard"
+          element={
+            <Layout>
+              <Dashboard />
+            </Layout>
+          }
+        />
 
-          <Route path="/patient/:consentId" element={<PatientDashboard />} />
+        {/* PATIENT HEALTH DASHBOARD */}
+        <Route
+          path="/patient/:consentId"
+          element={
+            <Layout>
+              <PatientDashboard />
+            </Layout>
+          }
+        />
 
-          <Route path="/patients" element={<Patients />} />
+        {/* PATIENTS LIST */}
+        <Route
+          path="/patients"
+          element={
+            <Layout>
+              <Patients />
+            </Layout>
+          }
+        />
 
-          <Route path="/consents" element={<ConsentRequests />} />
+        {/* CONSENT REQUESTS */}
+        <Route
+          path="/consents"
+          element={
+            <Layout>
+              <ConsentRequests />
+            </Layout>
+          }
+        />
 
-          <Route path="/timeline" element={<Timeline />} />
+        {/* HEALTH TIMELINE */}
+        <Route
+          path="/timeline"
+          element={
+            <Layout>
+              <Timeline />
+            </Layout>
+          }
+        />
 
-        </Routes>
-
-      </Layout>
+      </Routes>
 
     </Router>
 

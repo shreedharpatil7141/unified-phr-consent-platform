@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from app.config.database import db
 from app.models.consent_model import ConsentRequest
-from app.core.role_checker import require_role
+from app.core.dependencies import require_role
 
 router = APIRouter(prefix="/consent", tags=["Consent"])
 

@@ -5,7 +5,6 @@ import { useNavigate } from "react-router-dom";
 const Patients = () => {
 
   const [consents,setConsents] = useState([]);
-
   const navigate = useNavigate();
 
   useEffect(()=>{
@@ -17,7 +16,12 @@ const Patients = () => {
         Authorization:`Bearer ${token}`
       }
     })
-    .then(res => setConsents(res.data))
+    .then(res => {
+
+      const approved = res.data.filter(c => c.status === "approved");
+      setConsents(approved);
+
+    })
     .catch(err => console.error(err));
 
   },[]);
@@ -27,6 +31,10 @@ const Patients = () => {
     <div>
 
       <h1 style={{marginBottom:"20px"}}>Patients</h1>
+
+      {consents.length === 0 && (
+        <p>No approved patient consents yet</p>
+      )}
 
       {consents.map((c,index)=>(
 

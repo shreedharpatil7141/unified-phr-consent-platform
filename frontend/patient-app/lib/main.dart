@@ -1,17 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'screens/login_page.dart';
 import 'screens/home_screen.dart';
-import 'screens/health_timeline_screen.dart';
 import 'screens/consent_screen.dart';
 import 'screens/profile_screen.dart';
-
 
 void main() {
   runApp(const HealthSyncApp());
 }
 
-class HealthSyncApp extends StatelessWidget {
+class HealthSyncApp extends StatefulWidget {
   const HealthSyncApp({super.key});
+
+  @override
+  State<HealthSyncApp> createState() => _HealthSyncAppState();
+}
+
+class _HealthSyncAppState extends State<HealthSyncApp> {
+
+  Widget startPage = const SizedBox();
+
+  @override
+  void initState() {
+    super.initState();
+    checkLogin();
+  }
+
+  void checkLogin() async {
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString("token");
+
+    if(token != null){
+      startPage = const MainScreen();
+    } else {
+      startPage = const LoginPage();
+    }
+
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +50,7 @@ class HealthSyncApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: Colors.blue,
       ),
-      home: const MainScreen(),
+      home: startPage,
     );
   }
 }
@@ -44,14 +72,14 @@ class _MainScreenState extends State<MainScreen> {
     const ProfileScreen(),
   ];
 
-  void changeTab(int index) {
+  void changeTab(int index){
     setState(() {
       currentIndex = index;
     });
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context){
 
     return Scaffold(
 

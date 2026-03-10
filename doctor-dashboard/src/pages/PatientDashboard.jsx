@@ -9,19 +9,17 @@ import RiskScore from "../components/RiskScore";
 import "../styles/dashboard.css";
 import { useParams } from "react-router-dom";
 
-const Dashboard = () => {
+const PatientDashboard = () => {
 
   const [data, setData] = useState(null);
 
   const { consentId } = useParams();
 
-  const activeConsentId =
-    consentId || "c884df4c-f717-4f05-9d18-549b5ffb415b";
+  const activeConsentId = consentId;
 
   useEffect(() => {
 
-    // Only load patient data when a consentId exists
-    if (!consentId) return;
+    if (!activeConsentId) return;
 
     const token = localStorage.getItem("token");
 
@@ -30,52 +28,38 @@ const Dashboard = () => {
       return;
     }
 
-    getDashboardData(activeConsentId)
-      .then(res => setData(res.data))
-      .catch(err => console.error(err));
+    getDashboardData(activeConsentId, token)
+      .then(res => {
 
-  }, [activeConsentId, consentId]);
+        if (res && res.data) {
+          setData(res.data);
+        } else {
+          setData({ records: [], message: "No data available" });
+        }
 
-  // -------------------------
-  // MAIN DASHBOARD OVERVIEW
-  // -------------------------
+      })
+      .catch(err => {
+        console.error("Dashboard load error:", err);
+        setData({ records: [], message: "Failed to load patient data" });
+      });
+
+  }, [activeConsentId]);
 
   if (!consentId) {
     return (
       <div className="dashboard-container">
-
         <h1 className="dashboard-title">Doctor Dashboard</h1>
 
         <div className="grid grid-4">
 
-          <StatCard
-            title="Patients Connected"
-            value="3"
-            icon={<Activity size={20}/>}
-          />
-
-          <StatCard
-            title="Active Consents"
-            value="2"
-            icon={<Database size={20}/>}
-          />
-
-          <StatCard
-            title="Health Records"
-            value="15"
-            icon={<HeartPulse size={20}/>}
-          />
-
-          <StatCard
-            title="AI Alerts"
-            value="1"
-            icon={<AlertTriangle size={20}/>}
-          />
+          <StatCard title="Patients Connected" value="3" icon={<Activity size={20}/>} />
+          <StatCard title="Active Consents" value="2" icon={<Database size={20}/>} />
+          <StatCard title="Health Records" value="15" icon={<HeartPulse size={20}/>} />
+          <StatCard title="AI Alerts" value="1" icon={<AlertTriangle size={20}/>} />
 
         </div>
 
         <div className="card" style={{marginTop:"30px"}}>
-
           <h3>Recent Activity</h3>
 
           <ul>
@@ -90,10 +74,6 @@ const Dashboard = () => {
     );
   }
 
-  // -------------------------
-  // PATIENT DETAIL PAGE
-  // -------------------------
-
   if (!data) {
     return (
       <div className="dashboard-container">
@@ -102,8 +82,9 @@ const Dashboard = () => {
     );
   }
 
-  const patientEmail =
-    data.records?.[0]?.patient_id || "patient@test.com";
+  const records = data.records || [];
+
+  const patientEmail = data.patient_id;
 
   return (
 
@@ -121,7 +102,7 @@ const Dashboard = () => {
 
         <StatCard
           title="Records"
-          value={data.records.length}
+          value={records.length}
           icon={<Database size={20}/>}
         />
 
@@ -156,24 +137,60 @@ const Dashboard = () => {
 
         <div className="card">
           <h3 style={{marginBottom:"10px"}}>Vitals Trend</h3>
-          <VitalsChart records={data.records}/>
+          <VitalsChart records={records}/>
         </div>
 
         <div style={{display:"flex",flexDirection:"column",gap:"20px"}}>
-          <AlertsPanel records={data.records}/>
-          <RiskScore records={data.records}/>
+          <AlertsPanel records={records}/>
+          <RiskScore records={records}/>
         </div>
 
       </div>
 
+      {/* -------- DOCUMENTS SECTION (NEW) -------- */}
+
+      <div className="card" style={{marginTop:"30px"}}>
+
+        <h3 style={{marginBottom:"15px"}}>Medical Documents</h3>
+
+        {records
+          .filter(r => r.file_url)
+          .map((r,index)=>(
+            <div key={index} style={{marginBottom:"10px"}}>
+
+              <b>{r.recordName || "Medical File"}</b>
+
+              <div>
+                <a
+                  href={r.file_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{color:"#2563eb"}}
+                >
+                  View PDF
+                </a>
+              </div>
+
+            </div>
+        ))}
+
+        {records.filter(r => r.file_url).length === 0 && (
+          <p>No uploaded documents</p>
+        )}
+
+      </div>
+
+      {/* -------- TIMELINE -------- */}
+
       <div className="card" style={{marginTop:"30px"}}>
         <h3 style={{marginBottom:"15px"}}>Unified Health Timeline</h3>
-        <HealthTimeline records={data.records}/>
+        <HealthTimeline records={records}/>
       </div>
 
     </div>
 
   );
+
 };
 
 const StatCard = ({title,value,icon}) => {
@@ -197,4 +214,4 @@ const StatCard = ({title,value,icon}) => {
 
 };
 
-export default Dashboard;
+export default PatientDashboard;

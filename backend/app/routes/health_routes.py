@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from app.config.database import db
 from app.models.health_record_model import HealthRecord
-from app.core.role_checker import require_role
+from app.core.dependencies import require_role
 
 router = APIRouter(prefix="/health", tags=["Health Records"])
 
@@ -28,3 +28,15 @@ def add_health_record(
         "message": "Health record added successfully",
         "record_id": record_data["record_id"]
     }
+@router.get("/my-records")
+def get_my_records(
+    current_user: dict = Depends(require_role("patient"))
+):
+    records = list(
+        health_collection.find(
+            {"patient_id": current_user["email"]},
+            {"_id": 0}
+        ).sort("timestamp", 1)
+    )
+
+    return records

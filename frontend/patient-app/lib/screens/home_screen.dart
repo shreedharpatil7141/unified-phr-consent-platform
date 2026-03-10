@@ -14,7 +14,6 @@ import 'package:health1/screens/vitals_history_screen.dart';
 import '../models/health_record.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:health/health.dart';
-import '../services/consent_repository.dart';
 import '../models/consent_model.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -26,7 +25,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
 final HealthService healthService = HealthService();
-  List records = [];
+
+  List<HealthRecord> records = [];
+  List<Consent> pendingConsents = [];   // ADD THIS LINE
+
   bool loading = true;
 
   @override
@@ -34,18 +36,48 @@ final HealthService healthService = HealthService();
     super.initState();
     loadRecords();
     loadSmartwatchData();
+    loadConsents();   
   }
    Future loadRecords() async {
 
   await Future.delayed(const Duration(milliseconds: 300));
 
   setState(() {
-
     records = HealthRecordRepository.getAllRecords();
     print("Records loaded: ${records.length}");
     loading = false;
-
   });
+
+}
+
+Future loadConsents() async {
+
+  try {
+
+    final data = await ApiService.getMyConsents();
+
+    List<Consent> consents = data.map<Consent>((c) {
+
+      return Consent(
+        id: c["consent_id"],
+        doctor: c["doctor_id"],
+        request: c["categories"].join(", "),
+        duration: c["access_duration_minutes"].toString(),
+        status: c["status"],
+      );
+
+    }).toList();
+
+    setState(() {
+      pendingConsents =
+          consents.where((c) => c.status == "pending").toList();
+    });
+
+  } catch (e) {
+
+    print("CONSENT LOAD ERROR: $e");
+
+  }
 
 }
 @override
@@ -101,9 +133,31 @@ void didChangeDependencies() {
     );
 
   }
+
   setState(() {
-  records = HealthRecordRepository.getAllRecords();
-});
+    records = HealthRecordRepository.getAllRecords();
+  });
+
+}
+
+////////////////////////////////////////////////////////////
+/// ADD THIS FUNCTION HERE
+////////////////////////////////////////////////////////////
+
+String getLatestValue(String type) {
+
+  try {
+
+    final rec = records.lastWhere((r) => r.type == type);
+
+    return rec.value.toString();
+
+  } catch (e) {
+
+    return "0";
+
+  }
+
 }
 
   @override
@@ -181,13 +235,13 @@ Container(
   ),
 
   child: Column(
-    children: const [
+    children:[
 
-      WatchItem(title: "Steps", value: "0"),
-      WatchItem(title: "Distance", value: "0 km"),
-      WatchItem(title: "Calories Burned", value: "0 cal"),
-      WatchItem(title: "Sleep", value: "0 hrs"),
-      WatchItem(title: "Heart Rate", value: "0 BPM"),
+      WatchItem(title: "Steps", value: getLatestValue("Steps")),
+WatchItem(title: "Distance", value: getLatestValue("Distance")),
+WatchItem(title: "Calories Burned", value: getLatestValue("Calories Burned")),
+WatchItem(title: "Sleep", value: getLatestValue("Sleep")),
+WatchItem(title: "Heart Rate", value: getLatestValue("Heart Rate")),
 
     ],
   ),
@@ -269,9 +323,7 @@ Container(
             const SizedBox(height: 12),
 
            Column(
-  children: ConsentRepository.getAll()
-      .where((c) => c.status == "pending")
-      .map((consent) {
+  children: pendingConsents.map((consent) {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -312,11 +364,13 @@ Container(
           ),
 
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
 
-              ConsentRepository.approve(consent.id);
+              await ApiService.approveConsent(consent.id);
 
-              setState(() {});
+              setState(() {
+                pendingConsents.removeWhere((c) => c.id == consent.id);
+              });
 
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -325,7 +379,6 @@ Container(
               );
 
             },
-
             child: const Text("Approve"),
           )
 
@@ -334,7 +387,7 @@ Container(
     );
 
   }).toList(),
-), 
+),
 
             const SizedBox(height: 30),
 

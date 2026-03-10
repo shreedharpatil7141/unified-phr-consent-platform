@@ -2,16 +2,28 @@
     package="com.example.health1">
 
     <!-- Permissions -->
-    <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
+    <!-- Permissions -->
+<uses-permission android:name="android.permission.CAMERA"/>
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+<uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
 <uses-permission android:name="android.permission.BODY_SENSORS"/>
 <uses-permission android:name="android.permission.INTERNET"/>
 
+<!-- Health Connect permissions -->
+<uses-permission android:name="android.permission.health.READ_STEPS"/>
+<uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
+<uses-permission android:name="android.permission.health.READ_DISTANCE"/>
+<uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED"/>
+<uses-permission android:name="android.permission.health.READ_SLEEP"/>
+
     <application
-        android:label="health1"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+    android:label="health1"
+    android:name="${applicationName}"
+    android:icon="@mipmap/ic_launcher">
+
+    <meta-data
+        android:name="android.health.connect.client"
+        android:value="true"/>
 
         <activity
             android:name=".MainActivity"

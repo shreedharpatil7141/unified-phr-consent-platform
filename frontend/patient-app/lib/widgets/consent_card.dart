@@ -7,6 +7,7 @@ class ConsentCard extends StatelessWidget {
   final String request;
   final String duration;
   final bool showActions;
+
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
 
@@ -25,7 +26,11 @@ class ConsentCard extends StatelessWidget {
   Widget build(BuildContext context) {
 
     return Card(
-      margin: const EdgeInsets.only(bottom:12),
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
 
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -34,6 +39,7 @@ class ConsentCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
+            /// Doctor Name
             Text(
               doctor,
               style: const TextStyle(
@@ -42,27 +48,49 @@ class ConsentCard extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height:6),
+            const SizedBox(height: 6),
 
-            Text("Request: $request"),
-            Text("Duration: $duration"),
+            /// Request Type
+            Text(
+              "Request: $request",
+              style: const TextStyle(fontSize: 14),
+            ),
 
-            if(showActions)
-              const SizedBox(height:10),
+            const SizedBox(height: 4),
 
-            if(showActions)
+            /// Duration
+            Text(
+              "Duration: $duration",
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+
+            /// Buttons
+            if (showActions) const SizedBox(height: 12),
+
+            if (showActions)
               Row(
                 children: [
 
+                  /// Approve Button
                   ElevatedButton(
                     onPressed: onApprove,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                    ),
                     child: const Text("Approve"),
                   ),
 
-                  const SizedBox(width:10),
+                  const SizedBox(width: 10),
 
+                  /// Reject Button
                   OutlinedButton(
                     onPressed: onReject,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                    ),
                     child: const Text("Reject"),
                   )
 
