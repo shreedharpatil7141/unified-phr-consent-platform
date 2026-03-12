@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:health1/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
-import 'consent_screen.dart';
+import 'medical_basics_screen.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -35,6 +35,7 @@ class _LoginPageState extends State<LoginPage> {
       if(response["access_token"] != null){
 
         String token = response["access_token"];
+        final bool profileComplete = response["profile_complete"] ?? false;
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString("token", token);
@@ -44,7 +45,9 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => const MainScreen(),
+            builder: (_) => profileComplete
+                ? const MainScreen()
+                : const MedicalBasicsScreen(showSkip: false),
           ),
         );
 
@@ -106,10 +109,14 @@ class _LoginPageState extends State<LoginPage> {
 
                   children: [
 
-                    const Icon(
-                      Icons.health_and_safety,
-                      size: 60,
-                      color: Colors.blue,
+                    const CircleAvatar(
+                      radius: 34,
+                      backgroundColor: Color(0xFFD6F5EF),
+                      child: Icon(
+                        Icons.health_and_safety,
+                        size: 38,
+                        color: Color(0xFF0F766E),
+                      ),
                     ),
 
                     const SizedBox(height:10),
@@ -120,6 +127,14 @@ class _LoginPageState extends State<LoginPage> {
                         fontSize: 24,
                         fontWeight: FontWeight.bold
                       ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    const Text(
+                      "Unified health records, consents, and connected care.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.black54),
                     ),
 
                     const SizedBox(height:20),

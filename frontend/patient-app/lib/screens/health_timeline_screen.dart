@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../models/health_record.dart';
+import '../services/api_service.dart';
 import '../services/health_record_repository.dart';
 
 class HealthTimelineScreen extends StatefulWidget {
@@ -10,136 +12,141 @@ class HealthTimelineScreen extends StatefulWidget {
 }
 
 class _HealthTimelineScreenState extends State<HealthTimelineScreen> {
-
-  List<HealthRecord> records = [];
+  List<_TimelineEvent> events = [];
+  bool loading = true;
 
   @override
   void initState() {
     super.initState();
-    loadRecords();
+    loadEvents();
   }
 
-  void loadRecords() {
-
-    records = HealthRecordRepository
-        .getAllRecords()
-        .where((r) => r.category != "vitals")   // remove vitals
+  Future<void> loadEvents() async {
+    final uploadedRecords = HealthRecordRepository.getAllRecords()
+        .where((record) => (record.filePath ?? "").isNotEmpty)
+        .map(
+          (record) => _TimelineEvent(
+            title: record.recordName ?? record.type,
+            subtitle: "${record.category} • ${record.hospitalName ?? "Uploaded document"}",
+            timestamp: record.timestamp,
+            icon: Icons.upload_file,
+            color: const Color(0xFF2563EB),
+          ),
+        )
         .toList();
 
-    records.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final notificationEvents = <_TimelineEvent>[];
+    try {
+      final notifications = await ApiService.getNotifications();
+      for (final item in notifications) {
+        final message = (item["message"] ?? "").toString();
+        if (!message.toLowerCase().contains("request") &&
+            !message.toLowerCase().contains("alert") &&
+            !message.toLowerCase().contains("approved")) {
+          continue;
+        }
+        notificationEvents.add(
+          _TimelineEvent(
+            title: message,
+            subtitle: "System activity",
+            timestamp: DateTime.tryParse(item["created_at"]?.toString() ?? "") ?? DateTime.now(),
+            icon: message.toLowerCase().contains("alert") ? Icons.warning_amber_rounded : Icons.verified_user,
+            color: message.toLowerCase().contains("alert")
+                ? const Color(0xFFEA580C)
+                : const Color(0xFF0F766E),
+          ),
+        );
+      }
+    } catch (_) {}
 
-    setState(() {});
+    final combined = [...uploadedRecords, ...notificationEvents]
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    if (mounted) {
+      setState(() {
+        events = combined;
+        loading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-
-      appBar: AppBar(
-        title: const Text("Health Timeline"),
-      ),
-
-      body: records.isEmpty
-          ? const Center(
-              child: Text("No health events yet"),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: records.length,
-
-              itemBuilder: (context, index) {
-
-                final record = records[index];
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-
-                    /// Timeline Line
-                    Column(
+      appBar: AppBar(title: const Text("Health Timeline")),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : events.isEmpty
+              ? const Center(child: Text("No uploaded records or activity yet"))
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: events.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final event = events[index];
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-
-                        const Icon(
-                          Icons.circle,
-                          size: 12,
-                          color: Colors.blue,
+                        Column(
+                          children: [
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor: event.color.withOpacity(0.14),
+                              child: Icon(event.icon, size: 15, color: event.color),
+                            ),
+                            Container(width: 2, height: 92, color: const Color(0xFFDDE9E7)),
+                          ],
                         ),
-
-                        Container(
-                          width: 2,
-                          height: 80,
-                          color: Colors.grey.shade300,
-                        )
-
-                      ],
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    /// Timeline Card
-                    Expanded(
-                      child: Card(
-                        elevation: 2,
-
-                        child: ListTile(
-
-                          leading: Icon(
-                            getIcon(record.category),
-                            color: Colors.blue,
-                          ),
-
-                          title: Text(
-                            record.recordName ?? record.type,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: const Color(0xFFDDE9E7)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "${event.timestamp.day}/${event.timestamp.month}/${event.timestamp.year} • ${event.timestamp.hour}:${event.timestamp.minute.toString().padLeft(2, '0')}",
+                                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  event.title,
+                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  event.subtitle,
+                                  style: const TextStyle(color: Colors.black54),
+                                ),
+                              ],
                             ),
                           ),
-
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-
-                              if (record.hospitalName != null &&
-                                  record.hospitalName!.isNotEmpty)
-                                Text(record.hospitalName!),
-
-                            ],
-                          ),
-
-                          trailing: Text(
-                            "${record.timestamp.day}/${record.timestamp.month}/${record.timestamp.year}",
-                            style: const TextStyle(fontSize: 12),
-                          ),
                         ),
-                      ),
-                    )
-
-                  ],
-                );
-              },
-            ),
+                      ],
+                    );
+                  },
+                ),
     );
   }
+}
 
-  IconData getIcon(String category) {
+class _TimelineEvent {
+  final String title;
+  final String subtitle;
+  final DateTime timestamp;
+  final IconData icon;
+  final Color color;
 
-    switch (category) {
-
-      case "lab_report":
-        return Icons.science;
-
-      case "prescription":
-        return Icons.description;
-
-      case "vaccination":
-        return Icons.vaccines;
-
-      case "expense":
-        return Icons.receipt_long;
-
-      default:
-        return Icons.health_and_safety;
-    }
-  }
+  _TimelineEvent({
+    required this.title,
+    required this.subtitle,
+    required this.timestamp,
+    required this.icon,
+    required this.color,
+  });
 }

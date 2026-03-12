@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/health_record.dart';
+import '../services/api_service.dart';
 import '../services/data_segregation_service.dart';
 import '../services/health_record_repository.dart';
 import '../services/data_normalization_service.dart';
@@ -51,7 +52,7 @@ class _HealthInputScreenState extends State<HealthInputScreen> {
             const SizedBox(height: 30),
 
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
 
                 String enteredValue = valueController.text;
 
@@ -65,24 +66,72 @@ class _HealthInputScreenState extends State<HealthInputScreen> {
                 final mapping =
     DataSegregationService.segregate(widget.title);
 
-HealthRecordRepository.addRecord(
-  HealthRecord(
-    id: DateTime.now().millisecondsSinceEpoch.toString(),
-    category: mapping["category"]!,
-    type: DataNormalizationService.normalizeType(mapping["type"]!),
-    domain: mapping["domain"]!, // NEW
-    value: enteredValue,
-    unit: widget.unit,
-    source: "manual",
-    timestamp: DateTime.now(),
-  ),
-);
+                final timestamp = DateTime.now();
+                final normalizedType =
+                    DataNormalizationService.normalizeType(mapping["type"]!);
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Record Saved")),
-                );
+                final email = await ApiService.getUserEmail();
+                if (email == null) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("User not logged in")),
+                  );
+                  return;
+                }
 
-                Navigator.pop(context);
+                try {
+                  // Sync to backend first
+                  await ApiService.addHealthRecord(
+                    patientId: email,
+                    source: "manual",
+                    category: mapping["category"]!,
+                    recordType: normalizedType,
+                    domain: mapping["domain"]!,
+                    value: enteredValue,
+                    unit: widget.unit,
+                    timestamp: timestamp,
+                  );
+
+                  // Add to local repository
+                  HealthRecordRepository.addRecord(
+                    HealthRecord(
+                      id: timestamp.millisecondsSinceEpoch.toString(),
+                      category: mapping["category"]!,
+                      type: normalizedType,
+                      domain: mapping["domain"]!,
+                      value: enteredValue,
+                      unit: widget.unit,
+                      source: "manual",
+                      timestamp: timestamp,
+                    ),
+                  );
+
+                  // Reload from server to get the saved record
+                  await HealthRecordRepository.loadFromServer();
+
+                  if (!mounted) return;
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Record Saved Successfully"),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+
+                  Navigator.pop(context, true); // Return true to signal refresh
+                } catch (e) {
+                  if (!mounted) return;
+                  
+                  print("SAVE RECORD ERROR: $e");
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Failed to save: ${e.toString()}"),
+                      duration: const Duration(seconds: 3),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               },
               child: const Text("Save"),
             )

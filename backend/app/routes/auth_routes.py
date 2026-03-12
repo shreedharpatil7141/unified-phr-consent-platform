@@ -11,17 +11,49 @@ users_collection = db["users"]
 
 @router.post("/register")
 def register(user: UserRegister):
+    # hygienic checks
     existing_user = users_collection.find_one({"email": user.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    hashed_pw = hash_password(user.password)
+    # bcrypt has a 72-byte limit; enforce and inform client
+    if len(user.password.encode('utf-8')) > 72:
+        raise HTTPException(
+            status_code=400,
+            detail="Password too long: must be 72 bytes or fewer"
+        )
+
+    try:
+        hashed_pw = hash_password(user.password)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     user_data = {
         "name": user.name,
         "email": user.email,
         "password": hashed_pw,
-        "role": user.role
+        "role": user.role,
+        "height_cm": user.height_cm,
+        "weight_kg": user.weight_kg,
+        "allergies": user.allergies,
+        "blood_group": user.blood_group,
+        "chronic_conditions": user.chronic_conditions,
+        "emergency_contact": user.emergency_contact,
+        "gender": user.gender,
+        "age": user.age,
+        "profile_complete": any(
+            value is not None and value != ""
+            for value in [
+                user.height_cm,
+                user.weight_kg,
+                user.allergies,
+                user.blood_group,
+                user.chronic_conditions,
+                user.emergency_contact,
+                user.gender,
+                user.age,
+            ]
+        ),
     }
 
     users_collection.insert_one(user_data)
@@ -47,4 +79,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     return {
         "access_token": access_token,
         "token_type": "bearer",
+        "email": db_user["email"],
+        "name": db_user.get("name", ""),
+        "profile_complete": db_user.get("profile_complete", False),
     }

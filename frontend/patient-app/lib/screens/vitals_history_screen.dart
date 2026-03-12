@@ -23,7 +23,7 @@ class _VitalsHistoryScreenState extends State<VitalsHistoryScreen> {
 
     records = HealthRecordRepository
         .getAllRecords()
-        .where((r) => r.category == "vitals")
+        .where((r) => r.category == "vitals" || r.category == "wearable")
         .toList();
 
     records.sort((a, b) => b.timestamp.compareTo(a.timestamp));

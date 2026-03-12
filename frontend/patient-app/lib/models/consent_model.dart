@@ -4,6 +4,9 @@ class Consent {
   final String doctor;
   final String request;
   final String duration;
+  final DateTime? requestedAt;
+  final DateTime? approvedAt;
+  final DateTime? expiresAt;
 
   String status; // pending, active, history
 
@@ -12,6 +15,9 @@ class Consent {
     required this.doctor,
     required this.request,
     required this.duration,
+    this.requestedAt,
+    this.approvedAt,
+    this.expiresAt,
     this.status = "pending",
   });
 

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../services/health_record_repository.dart';
 import '../models/health_record.dart';
+import '../services/api_service.dart';
 import 'package:open_file/open_file.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LabReportsPage extends StatefulWidget {
   const LabReportsPage({super.key});
@@ -14,6 +16,56 @@ class LabReportsPage extends StatefulWidget {
 class _LabReportsPageState extends State<LabReportsPage> {
 
   String selectedDomain = "all";
+
+  bool _isRemoteFile(String path) {
+    final uri = Uri.tryParse(path);
+    return uri != null && uri.hasScheme;
+  }
+
+  Future<void> _viewFile(String? filePath) async {
+    if (filePath == null || filePath.isEmpty) {
+      return;
+    }
+
+    if (_isRemoteFile(filePath)) {
+      final uri = Uri.parse(filePath);
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Unable to open file")),
+        );
+      }
+      return;
+    }
+
+    await OpenFile.open(filePath);
+  }
+
+  Future<void> _shareFile(HealthRecord record) async {
+    final filePath = record.filePath;
+    if (filePath == null || filePath.isEmpty) {
+      return;
+    }
+
+    if (_isRemoteFile(filePath)) {
+      await Share.share(
+        "${record.recordName ?? "Medical Report"}\n$filePath",
+      );
+      return;
+    }
+
+    await Share.shareXFiles(
+      [XFile(filePath)],
+      text: record.recordName ?? "Medical Report",
+    );
+  }
+
+  Future<void> _deleteRecord(HealthRecord record) async {
+    await ApiService.deleteRecord(record.id);
+    HealthRecordRepository.removeRecord(record.id);
+    if (!mounted) return;
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,10 +165,8 @@ class _LabReportsPageState extends State<LabReportsPage> {
             ElevatedButton.icon(
               icon: const Icon(Icons.visibility),
               label: const Text("View"),
-              onPressed: () {
-                if(record.filePath != null){
-                  OpenFile.open(record.filePath!);
-                }
+              onPressed: () async {
+                await _viewFile(record.filePath);
               },
             ),
 
@@ -125,14 +175,16 @@ class _LabReportsPageState extends State<LabReportsPage> {
             ElevatedButton.icon(
               icon: const Icon(Icons.share),
               label: const Text("Share"),
-              onPressed: () {
-                if(record.filePath != null){
-                  Share.shareXFiles(
-                    [XFile(record.filePath!)],
-                    text: record.recordName ?? "Medical Report",
-                  );
-                }
+              onPressed: () async {
+                await _shareFile(record);
               },
+            ),
+
+            const SizedBox(width: 10),
+
+            IconButton(
+              onPressed: () => _deleteRecord(record),
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
             ),
 
           ],

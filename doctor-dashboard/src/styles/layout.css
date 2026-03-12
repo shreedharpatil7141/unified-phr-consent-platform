@@ -9,6 +9,9 @@
   background:#0f172a;
   color:white;
   padding:25px 20px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
 }
 
 .logo{

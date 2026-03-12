@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 
-import '../models/health_record.dart';
 import '../services/data_segregation_service.dart';
 import '../services/health_record_repository.dart';
+import '../services/api_service.dart';
 
 class UploadRecordScreen extends StatefulWidget {
 
@@ -213,7 +213,7 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
 
             /// SAVE BUTTON
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
 
                 if (selectedFile == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -225,38 +225,49 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                 final mapping =
                     DataSegregationService.segregate(widget.title);
 
-                HealthRecordRepository.addRecord(
+                final domain = widget.title == "Lab Reports"
+                    ? selectedDomain
+                    : mapping["domain"]!;
 
-                  HealthRecord(
-
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-
-                    category: mapping["category"]!,
-
-                    type: mapping["type"]!,
-
-                    domain: widget.title == "Lab Reports"
-                        ? selectedDomain
-                        : mapping["domain"]!,
-
-                    value: "",
-                    unit: "",
-                    source: "user_upload",
-                    timestamp: DateTime.now(),
+                try {
+                  final response = await ApiService.uploadRecord(
                     filePath: selectedFile!.path,
+                    fileName: fileName!,
+                    category: mapping["category"]!,
+                    recordType: mapping["type"]!,
+                    domain: domain,
+                    provider: hospitalController.text.trim(),
+                    recordName: recordNameController.text.trim(),
+                    doctor: doctorController.text.trim(),
+                    hospital: hospitalController.text.trim(),
+                    notes: notesController.text.trim(),
+                  );
 
-                    recordName: recordNameController.text,
-                    doctorName: doctorController.text,
-                    hospitalName: hospitalController.text,
+                  await HealthRecordRepository.loadFromServer();
 
-                  ),
-                );
+                  if (!mounted) {
+                    return;
+                  }
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Record Saved")),
-                );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        "Record uploaded successfully"
+                        "${response["report_intelligence"] != null ? " - ${response["report_intelligence"]["inferred_domain"]} detected" : ""}",
+                      ),
+                    ),
+                  );
 
-                Navigator.pop(context);
+                  Navigator.pop(context, true);
+                } catch (e) {
+                  if (!mounted) {
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Upload failed: $e")),
+                  );
+                }
               },
               child: const Text("Save Record"),
             )

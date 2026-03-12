@@ -1,6 +1,4 @@
-import axios from "axios";
-
-const API_BASE = "http://localhost:8000";
+import API from "./api";
 
 //////////////////////////////////////////////////
 // SEND CONSENT REQUEST
@@ -14,9 +12,8 @@ export const requestConsent = async (
   duration,
   token
 ) => {
-
-  const response = await axios.post(
-    `${API_BASE}/consent/request`,
+  const response = await API.post(
+    `/consent/request`,
     {
       patient_id: patientEmail,
       categories: categories,
@@ -24,12 +21,6 @@ export const requestConsent = async (
       date_to: dateTo,
       access_duration_minutes: duration
     },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
-    }
   );
 
   return response.data;
@@ -40,15 +31,36 @@ export const requestConsent = async (
 //////////////////////////////////////////////////
 
 export const getSentRequests = async (token) => {
+  const response = await API.get(`/consent/sent`);
 
-  const response = await axios.get(
-    `${API_BASE}/consent/sent`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    }
-  );
+  return response.data;
+};
 
+////////////////////////////////////////////////////////
+// NOTIFICATIONS
+////////////////////////////////////////////////////////
+
+export const getNotifications = async (token) => {
+  const response = await API.get(`/notifications/my`);
+  return response.data;
+};
+
+export const markNotificationRead = async (notificationId, token) => {
+  const response = await API.post(`/notifications/mark-read/${notificationId}`, {});
+  return response.data;
+};
+
+export const deleteNotification = async (notificationId, token) => {
+  const response = await API.delete(`/notifications/${notificationId}`);
+  return response.data;
+};
+
+export const deleteConsent = async (consentId, token) => {
+  const response = await API.delete(`/consent/${consentId}`);
+  return response.data;
+};
+
+export const deleteExpiredConsents = async (token) => {
+  const response = await API.delete(`/consent/expired/cleanup`);
   return response.data;
 };

@@ -1,17 +1,29 @@
 import 'package:flutter/material.dart';
-import '../services/health_record_repository.dart';
-import '../models/health_record.dart';
 
-class PrescriptionsPage extends StatelessWidget {
+import '../models/health_record.dart';
+import '../services/api_service.dart';
+import '../services/health_record_repository.dart';
+
+class PrescriptionsPage extends StatefulWidget {
   const PrescriptionsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<PrescriptionsPage> createState() => _PrescriptionsPageState();
+}
 
-    final List<HealthRecord> records =
-        HealthRecordRepository.getAllRecords()
-            .where((r) => r.category == "prescription")
-            .toList();
+class _PrescriptionsPageState extends State<PrescriptionsPage> {
+  Future<void> _deleteRecord(HealthRecord record) async {
+    await ApiService.deleteRecord(record.id);
+    HealthRecordRepository.removeRecord(record.id);
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final records = HealthRecordRepository.getAllRecords()
+        .where((r) => r.category == "prescription")
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -24,13 +36,18 @@ class PrescriptionsPage extends StatelessWidget {
           : ListView.builder(
               itemCount: records.length,
               itemBuilder: (context, index) {
-
                 final record = records[index];
 
                 return ListTile(
                   leading: const Icon(Icons.description),
                   title: Text(record.recordName ?? record.type),
-subtitle: Text("${record.doctorName ?? ""} • ${record.hospitalName ?? ""}"),
+                  subtitle: Text(
+                    "${record.doctorName ?? ""} • ${record.hospitalName ?? ""}",
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _deleteRecord(record),
+                  ),
                 );
               },
             ),

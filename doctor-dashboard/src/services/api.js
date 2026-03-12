@@ -1,7 +1,8 @@
 import axios from "axios";
+import { API_BASE_URL } from "./config";
 
 const API = axios.create({
-  baseURL: "http://127.0.0.1:8000"
+  baseURL: API_BASE_URL
 });
 
 API.interceptors.request.use((req) => {
@@ -15,6 +16,21 @@ API.interceptors.request.use((req) => {
   return req;
 });
 
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      localStorage.removeItem("token");
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const getDashboardData = (consentId) => {
   return API.get(`/data/view/${consentId}`);
 };
+
+export default API;

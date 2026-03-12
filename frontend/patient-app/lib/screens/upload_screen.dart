@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:io';
 import '../services/api_service.dart';
 
 class UploadScreen extends StatefulWidget {
@@ -26,7 +25,14 @@ class _UploadScreenState extends State<UploadScreen> {
 
     print("Selected file: $fileName");
 
-    await ApiService.uploadRecord(filePath, fileName);
+    await ApiService.uploadRecord(
+      filePath: filePath,
+      fileName: fileName,
+      category: "lab_report",
+      recordType: "document",
+      domain: "general",
+      recordName: fileName,
+    );
 
     if (context.mounted) {
       Navigator.pop(context, true);

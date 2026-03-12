@@ -74,6 +74,15 @@ def generate_alert(
         "status": "active"
     }
 
+    # notify patient of alert
+    db["notifications"].insert_one({
+        "notification_id": str(uuid4()),
+        "user_id": current_user["email"],
+        "message": alert_data["message"],
+        "created_at": datetime.utcnow(),
+        "read": False
+    })
+
     alert_collection.insert_one(alert_data)
 
     return {

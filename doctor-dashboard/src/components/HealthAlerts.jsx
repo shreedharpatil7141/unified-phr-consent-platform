@@ -1,10 +1,18 @@
 const HealthAlerts = ({ records }) => {
 
-  if(records.length < 3) return null
-
-  const values = records.map(r =>
-    r.metrics.find(m => m.name === "heart_rate")?.value
+  const metricRecords = records.filter(
+    (r) => Array.isArray(r.metrics) && r.metrics.length > 0
   )
+
+  if(metricRecords.length < 3) return null
+
+  const values = metricRecords
+    .map(r =>
+      r.metrics.find(m => m.name === "heart_rate")?.value
+    )
+    .filter((value) => value !== undefined && value !== null)
+
+  if(values.length < 3) return null
 
   const increasing =
     values[values.length-1] > values[0] + 10

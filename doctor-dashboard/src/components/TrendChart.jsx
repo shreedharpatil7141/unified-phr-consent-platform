@@ -2,14 +2,22 @@ import { Line } from "react-chartjs-2";
 
 const TrendChart = ({ records }) => {
 
-  if(!records || records.length === 0){
+  const metricRecords = (records || []).filter(
+    (r) => Array.isArray(r.metrics) && r.metrics.length > 0
+  )
+
+  if(metricRecords.length === 0){
     return null
   }
 
-  const heartRates = records.map(r=>({
+  const heartRates = metricRecords.map(r=>({
     date:r.timestamp,
     value:r.metrics[0]?.value
-  }))
+  })).filter((r) => r.value !== undefined && r.value !== null)
+
+  if(heartRates.length === 0){
+    return null
+  }
 
   const chartData = {
     labels: heartRates.map(r=>r.date),

@@ -6,7 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import PatientDashboard from "./pages/PatientDashboard";
 import Patients from "./pages/Patients";
 import ConsentRequests from "./pages/ConsentRequests";
-import Timeline from "./pages/Timeline";
+import Notifications from "./pages/Notifications";
 
 /* NEW AUTH PAGES */
 import Login from "./pages/Login";
@@ -66,12 +66,12 @@ function App() {
           }
         />
 
-        {/* HEALTH TIMELINE */}
+        {/* NOTIFICATIONS */}
         <Route
-          path="/timeline"
+          path="/notifications"
           element={
             <Layout>
-              <Timeline />
+              <Notifications />
             </Layout>
           }
         />

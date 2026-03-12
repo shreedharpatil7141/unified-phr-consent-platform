@@ -4,6 +4,11 @@ import '../services/api_service.dart';
 class HealthRecordRepository {
 
   static final List<HealthRecord> _records = [];
+  static final List<HealthRecord> _watchRecords = [];
+
+  static String _normalizeType(String type) {
+    return type.toLowerCase().replaceAll(" ", "_");
+  }
 
   /// Load records from backend
   static Future<void> loadFromServer() async {
@@ -18,15 +23,18 @@ class HealthRecordRepository {
 
         _records.add(
           HealthRecord(
-            id: r["id"] ?? "",
-            category: r["category"] ?? "",
-            type: r["type"] ?? "",
-            domain: r["domain"] ?? "",
+            id: r["record_id"] ?? "",
+            category: r["normalized_category"] ?? r["category"] ?? "",
+            type: r["normalized_record_type"] ?? r["record_type"] ?? "",
+            domain: r["normalized_domain"] ?? r["domain"] ?? "",
             value: r["value"]?.toString() ?? "",
             unit: r["unit"] ?? "",
-            source: r["source"] ?? "server",
+            source: r["normalized_source"] ?? r["source"] ?? "server",
             timestamp: DateTime.tryParse(r["timestamp"] ?? "") ?? DateTime.now(),
-            recordName: r["recordName"],
+            filePath: ApiService.resolveFileUrl(r["file_url"]),
+            recordName: r["record_name"],
+            doctorName: r["doctor"],
+            hospitalName: r["hospital"],
           ),
         );
 
@@ -45,15 +53,27 @@ class HealthRecordRepository {
     _records.add(record);
   }
 
+  static void setWatchRecords(List<HealthRecord> records) {
+    _watchRecords
+      ..clear()
+      ..addAll(records);
+  }
+
+  static void removeRecord(String recordId) {
+    _records.removeWhere((record) => record.id == recordId);
+    _watchRecords.removeWhere((record) => record.id == recordId);
+  }
+
   /// Get all records
   static List<HealthRecord> getAllRecords() {
-    return _records;
+    return [..._records, ..._watchRecords];
   }
 
   /// Filter by domain
   static List<HealthRecord> getRecordsByDomain(String domain) {
 
     return _records
+        .followedBy(_watchRecords)
         .where((r) => r.domain == domain)
         .toList();
 
@@ -65,7 +85,7 @@ class HealthRecordRepository {
       int year
   ){
 
-    return _records.where((r) =>
+    return _records.followedBy(_watchRecords).where((r) =>
         r.domain == domain &&
         r.timestamp.year == year
     ).toList();
@@ -77,9 +97,10 @@ class HealthRecordRepository {
       String type,
       DateTime startDate
   ) {
+    final normalizedType = _normalizeType(type);
 
-    return _records.where((r) =>
-        r.type == type &&
+    return _records.followedBy(_watchRecords).where((r) =>
+        _normalizeType(r.type) == normalizedType &&
         r.timestamp.isAfter(startDate)
     ).toList();
 

@@ -1,230 +1,234 @@
-import 'package:flutter/material.dart';
-import '../models/consent_model.dart';
-import '../services/consent_repository.dart';
-import '../widgets/consent_card.dart';
+import 'dart:async';
 
-class ConsentScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+
+import '../models/consent_model.dart';
+import '../services/api_service.dart';
+import '../services/app_refresh_notifier.dart';
+import '../services/consent_repository.dart';
+
+class ConsentScreen extends StatefulWidget {
   const ConsentScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<ConsentScreen> createState() => _ConsentScreenState();
+}
 
+class _ConsentScreenState extends State<ConsentScreen> with WidgetsBindingObserver {
+  List<Consent> consents = [];
+  bool loading = true;
+  Timer? refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    loadConsents();
+    refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) => loadConsents(showLoader: false));
+    AppRefreshNotifier.signal.addListener(_handleExternalRefresh);
+  }
+
+  @override
+  void dispose() {
+    refreshTimer?.cancel();
+    AppRefreshNotifier.signal.removeListener(_handleExternalRefresh);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      loadConsents(showLoader: false);
+    }
+  }
+
+  void _handleExternalRefresh() {
+    loadConsents(showLoader: false);
+  }
+
+  Future<void> loadConsents({bool showLoader = true}) async {
+    if (showLoader && mounted) {
+      setState(() {
+        loading = true;
+      });
+    }
+
+    try {
+      final data = await ConsentRepository.fetchConsents();
+      if (!mounted) return;
+      setState(() {
+        consents = data;
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+      });
+    }
+  }
+
+  List<Consent> get pending => consents.where((c) => c.status == "pending").toList();
+  List<Consent> get active => consents.where((c) => c.status == "approved").toList()
+    ..sort((a, b) => (a.expiresAt ?? DateTime(9999)).compareTo(b.expiresAt ?? DateTime(9999)));
+  List<Consent> get history => consents.where((c) => c.status == "rejected" || c.status == "revoked" || c.status == "expired").toList();
+
+  Future<void> approve(Consent consent) async {
+    await ApiService.approveConsent(consent.id);
+    await loadConsents(showLoader: false);
+    AppRefreshNotifier.notify();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Consent approved")),
+    );
+  }
+
+  Future<void> reject(Consent consent) async {
+    await ApiService.rejectConsent(consent.id);
+    await loadConsents(showLoader: false);
+    AppRefreshNotifier.notify();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Consent rejected")),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-
         appBar: AppBar(
-          title: const Text("Consent Manager"),
-          centerTitle: true,
-          elevation: 2,
+          title: const Text("Consent Center"),
           bottom: const TabBar(
             tabs: [
-              Tab(icon: Icon(Icons.pending_actions), text: "Pending"),
-              Tab(icon: Icon(Icons.verified), text: "Active"),
-              Tab(icon: Icon(Icons.history), text: "History"),
+              Tab(text: "Pending"),
+              Tab(text: "Active"),
+              Tab(text: "History"),
             ],
           ),
         ),
-
-        body: const TabBarView(
-          children: [
-            PendingConsents(),
-            ActiveConsents(),
-            ConsentHistory(),
-          ],
-        ),
+        body: loading
+            ? const Center(child: CircularProgressIndicator())
+            : TabBarView(
+                children: [
+                  _ConsentList(
+                    emptyText: "No pending consent requests",
+                    consents: pending,
+                    showActions: true,
+                    onApprove: approve,
+                    onReject: reject,
+                  ),
+                  _ConsentList(
+                    emptyText: "No active consents",
+                    consents: active,
+                  ),
+                  _ConsentList(
+                    emptyText: "No consent history",
+                    consents: history,
+                  ),
+                ],
+              ),
       ),
     );
   }
 }
 
-////////////////////////////////////////////////////
-/// PENDING CONSENTS
-////////////////////////////////////////////////////
+class _ConsentList extends StatelessWidget {
+  final List<Consent> consents;
+  final String emptyText;
+  final bool showActions;
+  final Future<void> Function(Consent consent)? onApprove;
+  final Future<void> Function(Consent consent)? onReject;
 
-class PendingConsents extends StatefulWidget {
-  const PendingConsents({super.key});
-
-  @override
-  State<PendingConsents> createState() => _PendingConsentsState();
-}
-
-class _PendingConsentsState extends State<PendingConsents> {
-
-  List<Consent> consents = [];
-  bool loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    loadConsents();
-  }
-
-  Future loadConsents() async {
-
-  try {
-
-    final data = await ConsentRepository.fetchConsents();
-
-    consents = data.where((c) => c.status == "pending").toList();
-
-  } catch (e) {
-
-    print("CONSENT LOAD ERROR: $e");
-
-    consents = [];
-
-  }
-
-  setState(() {
-    loading = false;
+  const _ConsentList({
+    required this.consents,
+    required this.emptyText,
+    this.showActions = false,
+    this.onApprove,
+    this.onReject,
   });
 
-}
-
-  Future approve(String id) async {
-
-    await ConsentRepository.approve(id);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Consent approved"))
-    );
-
-    loadConsents();
-  }
-
-  Future reject(String id) async {
-
-    await ConsentRepository.reject(id);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Consent rejected"))
-    );
-
-    loadConsents();
+  String _countdown(DateTime? expiresAt) {
+    if (expiresAt == null) return "No timer";
+    final diff = expiresAt.difference(DateTime.now());
+    if (diff.isNegative) return "Expired";
+    final hours = diff.inHours;
+    final minutes = diff.inMinutes.remainder(60);
+    return "${hours}h ${minutes}m left";
   }
 
   @override
   Widget build(BuildContext context) {
-
-    if(loading){
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if(consents.isEmpty){
-      return const Center(
-        child: Text(
-          "No pending consent requests",
-          style: TextStyle(fontSize: 16),
-        ),
-      );
+    if (consents.isEmpty) {
+      return Center(child: Text(emptyText));
     }
 
     return RefreshIndicator(
-
-      onRefresh: loadConsents,
-
-      child: ListView.builder(
+      onRefresh: () async => AppRefreshNotifier.notify(),
+      child: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: consents.length,
-
-        itemBuilder: (context,index){
-
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
           final consent = consents[index];
-
-          return ConsentCard(
-            consentId: consent.id,
-            doctor: consent.doctor,
-            request: consent.request,
-            duration: consent.duration,
-            showActions: true,
-
-            onApprove: () => approve(consent.id),
-            onReject: () => reject(consent.id),
-          );
-
-        },
-      ),
-    );
-  }
-}
-
-////////////////////////////////////////////////////
-/// ACTIVE CONSENTS
-////////////////////////////////////////////////////
-
-class ActiveConsents extends StatefulWidget {
-  const ActiveConsents({super.key});
-
-  @override
-  State<ActiveConsents> createState() => _ActiveConsentsState();
-}
-
-class _ActiveConsentsState extends State<ActiveConsents> {
-
-  List<Consent> active = [];
-
-  @override
-  void initState() {
-    super.initState();
-    loadActive();
-  }
-
-  Future loadActive() async {
-
-    final data = await ConsentRepository.fetchConsents();
-
-    active = data.where((c) => c.status == "approved").toList();
-
-    setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-
-    if(active.isEmpty){
-      return const Center(
-        child: Text(
-          "No active consents",
-          style: TextStyle(fontSize: 16),
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-
-      onRefresh: loadActive,
-
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: active.length,
-
-        itemBuilder: (context,index){
-
-          final consent = active[index];
-
-          return Card(
-            elevation: 3,
-            margin: const EdgeInsets.only(bottom: 12),
-
-            child: ListTile(
-
-              leading: const Icon(
-                Icons.verified,
-                color: Colors.green,
-              ),
-
-              title: Text(consent.doctor),
-
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-
-                  Text("Request: ${consent.request}"),
-                  Text("Duration: ${consent.duration} min"),
-
+          return Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFDDE9E7)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        consent.doctor,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    _StatusBadge(status: consent.status),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(consent.request, style: const TextStyle(color: Colors.black54)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _MiniInfo(label: "Duration", value: "${consent.duration} min"),
+                    if (consent.requestedAt != null)
+                      _MiniInfo(label: "Requested", value: "${consent.requestedAt!.day}/${consent.requestedAt!.month} ${consent.requestedAt!.hour}:${consent.requestedAt!.minute.toString().padLeft(2, '0')}"),
+                    if (consent.status == "approved")
+                      _MiniInfo(label: "Remaining", value: _countdown(consent.expiresAt)),
+                  ],
+                ),
+                if (showActions) ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => onApprove?.call(consent),
+                          child: const Text("Approve"),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => onReject?.call(consent),
+                          child: const Text("Reject"),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-              ),
+              ],
             ),
           );
         },
@@ -233,87 +237,53 @@ class _ActiveConsentsState extends State<ActiveConsents> {
   }
 }
 
-////////////////////////////////////////////////////
-/// CONSENT HISTORY
-////////////////////////////////////////////////////
-
-class ConsentHistory extends StatefulWidget {
-  const ConsentHistory({super.key});
-
-  @override
-  State<ConsentHistory> createState() => _ConsentHistoryState();
-}
-
-class _ConsentHistoryState extends State<ConsentHistory> {
-
-  List<Consent> history = [];
-
-  @override
-  void initState() {
-    super.initState();
-    loadHistory();
-  }
-
-  Future loadHistory() async {
-
-    final data = await ConsentRepository.fetchConsents();
-
-    history = data
-        .where((c) => c.status == "rejected" || c.status == "revoked")
-        .toList();
-
-    setState(() {});
-  }
+class _MiniInfo extends StatelessWidget {
+  final String label;
+  final String value;
+  const _MiniInfo({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F8F7),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
 
-    if(history.isEmpty){
-      return const Center(
-        child: Text(
-          "No consent history",
-          style: TextStyle(fontSize: 16),
-        ),
-      );
-    }
+class _StatusBadge extends StatelessWidget {
+  final String status;
+  const _StatusBadge({required this.status});
 
-    return RefreshIndicator(
-
-      onRefresh: loadHistory,
-
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: history.length,
-
-        itemBuilder: (context,index){
-
-          final consent = history[index];
-
-          return Card(
-            elevation: 2,
-            margin: const EdgeInsets.only(bottom: 12),
-
-            child: ListTile(
-
-              leading: const Icon(
-                Icons.cancel,
-                color: Colors.red,
-              ),
-
-              title: Text(consent.doctor),
-
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-
-                  Text("Request: ${consent.request}"),
-                  Text("Duration: ${consent.duration} min"),
-
-                ],
-              ),
-            ),
-          );
-        },
+  @override
+  Widget build(BuildContext context) {
+    final tone = switch (status) {
+      "approved" => const Color(0xFFDCFCE7),
+      "pending" => const Color(0xFFFFF7ED),
+      _ => const Color(0xFFF1F5F9),
+    };
+    final text = switch (status) {
+      "approved" => const Color(0xFF15803D),
+      "pending" => const Color(0xFFC2410C),
+      _ => const Color(0xFF475569),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: tone, borderRadius: BorderRadius.circular(999)),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(color: text, fontWeight: FontWeight.w700, fontSize: 12),
       ),
     );
   }

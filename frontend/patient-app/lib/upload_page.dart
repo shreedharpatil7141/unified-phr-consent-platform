@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import '../services/api_service.dart';
+import '../services/health_record_repository.dart';
+import '../services/data_segregation_service.dart';
 
 class UploadPage extends StatelessWidget {
   const UploadPage({super.key});
@@ -116,8 +120,37 @@ class UploadButton extends StatelessWidget {
   Widget build(BuildContext context) {
 
     return InkWell(
-      onTap: () {
-        print("$text clicked");
+      onTap: () async {
+        // pick a file and upload
+        try {
+          var result = await FilePicker.platform.pickFiles();
+          if (result != null && result.files.isNotEmpty) {
+            String path = result.files.first.path!;
+            String name = result.files.first.name;
+            final mapping = DataSegregationService.segregate(text);
+            final category = mapping["category"] ?? "other";
+            final domain = mapping["domain"] ?? "general";
+            await ApiService.uploadRecord(
+              filePath: path,
+              fileName: name,
+              category: category,
+              recordType: mapping["type"] ?? "document",
+              domain: domain == "user_selected" ? "general" : domain,
+              provider: text,
+              recordName: name,
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Upload succeeded"))
+            );
+            // make sure new record is fetched from backend
+            await HealthRecordRepository.loadFromServer();
+          }
+        } catch (e) {
+          print("UPLOAD ERROR: $e");
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Upload failed"))
+          );
+        }
       },
 
       child: Container(
