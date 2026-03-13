@@ -163,7 +163,8 @@ class _VitalDetailScreenState extends State<VitalDetailScreen> {
 
   double _summaryCurrent(List<_ChartBucket> buckets) {
     if (buckets.isEmpty) return 0;
-    return buckets.last.latest;
+    if (_isHeartRate) return buckets.last.latest;
+    return _summaryAverage(buckets);
   }
 
   double _summaryAverage(List<_ChartBucket> buckets) {
@@ -260,39 +261,52 @@ class _VitalDetailScreenState extends State<VitalDetailScreen> {
     if (!_isHeartRate) return false;
 
     final values = getValues();
-    if (values.length < 5) return false;
+    if (values.length < 12) return false;
 
     final maxValue = values.reduce((a, b) => a > b ? a : b);
     final minValue = values.reduce((a, b) => a < b ? a : b);
-    return (maxValue - minValue) > 40;
+    return (maxValue - minValue) > 50;
   }
 
   bool detectThreeMonthTrend() {
     if (!_isHeartRate) return false;
 
     final now = DateTime.now();
-    final month1 = now.subtract(const Duration(days: 90));
-    final month2 = now.subtract(const Duration(days: 60));
-    final month3 = now.subtract(const Duration(days: 30));
+    final start90 = now.subtract(const Duration(days: 90));
+    final start60 = now.subtract(const Duration(days: 60));
+    final start30 = now.subtract(const Duration(days: 30));
 
-    final m1 = HealthRecordRepository.getRecordsByTypeAndRange(widget.title, month1);
-    final m2 = HealthRecordRepository.getRecordsByTypeAndRange(widget.title, month2);
-    final m3 = HealthRecordRepository.getRecordsByTypeAndRange(widget.title, month3);
+    final allLast90 = HealthRecordRepository.getRecordsByTypeAndRange(
+      widget.title,
+      start90,
+    );
+
+    final m1 = allLast90
+        .where((record) => record.timestamp.isAfter(start90) && record.timestamp.isBefore(start60))
+        .toList();
+    final m2 = allLast90
+        .where((record) => record.timestamp.isAfter(start60) && record.timestamp.isBefore(start30))
+        .toList();
+    final m3 = allLast90
+        .where((record) => record.timestamp.isAfter(start30) && !record.timestamp.isAfter(now))
+        .toList();
+
+    if (m1.length < 3 || m2.length < 3 || m3.length < 3) {
+      return false;
+    }
 
     double avg(List<HealthRecord> records) {
-      if (records.isEmpty) return 0;
-      var sum = 0.0;
-      for (final record in records) {
-        sum += _parseValue(record);
-      }
-      return sum / records.length;
+      final values = records.map(_parseValue).where((v) => v > 0).toList();
+      if (values.isEmpty) return 0;
+      return values.reduce((a, b) => a + b) / values.length;
     }
 
     final avg1 = avg(m1);
     final avg2 = avg(m2);
     final avg3 = avg(m3);
+    final delta = avg3 - avg1;
 
-    return avg1 < avg2 && avg2 < avg3;
+    return avg1 < avg2 && avg2 < avg3 && delta >= 3;
   }
 
   Future<void> generateInsight() async {
@@ -429,7 +443,7 @@ class _VitalDetailScreenState extends State<VitalDetailScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Average ${_summaryAverage(buckets).toStringAsFixed(_isHeartRate ? 0 : 2)} ${widget.unit}',
+              '${_isHeartRate ? "Average" : "Range average"} ${_summaryAverage(buckets).toStringAsFixed(_isHeartRate ? 0 : 2)} ${widget.unit}',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.72),
                 fontSize: 15,
@@ -441,7 +455,7 @@ class _VitalDetailScreenState extends State<VitalDetailScreen> {
               spacing: 12,
               runSpacing: 12,
               children: [
-                statChip("Current", '${_summaryCurrent(buckets).toStringAsFixed(_isHeartRate ? 0 : 2)} ${widget.unit}'),
+                statChip(_isHeartRate ? "Current" : "Range Avg", '${_summaryCurrent(buckets).toStringAsFixed(_isHeartRate ? 0 : 2)} ${widget.unit}'),
                 statChip("Average", '${_summaryAverage(buckets).toStringAsFixed(_isHeartRate ? 0 : 2)} ${widget.unit}'),
                 statChip("Minimum", '${_summaryMin(buckets).toStringAsFixed(_isHeartRate ? 0 : 2)} ${widget.unit}'),
                 statChip("Maximum", '${_summaryMax(buckets).toStringAsFixed(_isHeartRate ? 0 : 2)} ${widget.unit}'),

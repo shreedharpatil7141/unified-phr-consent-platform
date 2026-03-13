@@ -21,10 +21,49 @@ class _VitalsHistoryScreenState extends State<VitalsHistoryScreen> {
 
   void loadVitals() {
 
-    records = HealthRecordRepository
+    final raw = HealthRecordRepository
         .getAllRecords()
         .where((r) => r.category == "vitals" || r.category == "wearable")
         .toList();
+
+    final grouped = <String, List<HealthRecord>>{};
+    for (final record in raw) {
+      final dayKey =
+          "${record.timestamp.year}-${record.timestamp.month}-${record.timestamp.day}";
+      final key = "${record.type}|$dayKey";
+      grouped.putIfAbsent(key, () => []).add(record);
+    }
+
+    records = grouped.entries.map((entry) {
+      final bucket = entry.value..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      final first = bucket.first;
+      final isHeart = first.type.toLowerCase().contains("heart");
+
+      final values = bucket
+          .map((item) => double.tryParse(item.value) ?? 0)
+          .where((value) => value > 0)
+          .toList();
+      final aggregated = values.isEmpty
+          ? 0
+          : (isHeart
+              ? values.last
+              : values.reduce((a, b) => a + b) / values.length);
+
+      return HealthRecord(
+        id: "${first.type}_${first.timestamp.millisecondsSinceEpoch}",
+        category: first.category,
+        type: first.type,
+        domain: first.domain,
+        value: aggregated.toStringAsFixed(isHeart ? 0 : 2),
+        unit: first.unit,
+        source: first.source,
+        timestamp: DateTime(
+          first.timestamp.year,
+          first.timestamp.month,
+          first.timestamp.day,
+        ),
+      );
+    }).toList();
 
     records.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 

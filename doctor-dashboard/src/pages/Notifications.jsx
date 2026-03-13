@@ -7,6 +7,7 @@ import {
   markNotificationRead,
 } from "../services/doctorService";
 import "../styles/dashboard.css";
+import { formatServerDateTime } from "../utils/dateTime";
 
 const Notifications = () => {
   const [notes, setNotes] = useState([]);
@@ -108,12 +109,12 @@ const Notifications = () => {
                 <Bell size={16} />
               </div>
 
-              <div className="notification-content">
-                <div className="notification-message">{note.message}</div>
-                <div className="notification-meta">
-                  {new Date(note.created_at).toLocaleString()}
+                <div className="notification-content">
+                  <div className="notification-message">{note.message}</div>
+                  <div className="notification-meta">
+                    {formatServerDateTime(note.created_at)}
+                  </div>
                 </div>
-              </div>
 
               <div className="notification-actions">
                 {!note.read && (

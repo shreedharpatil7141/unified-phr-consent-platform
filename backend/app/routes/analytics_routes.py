@@ -1,79 +1,54 @@
 from fastapi import APIRouter, Depends, HTTPException
-from datetime import datetime, timedelta
+
 from app.config.database import db
 from app.core.dependencies import require_role
+from app.services.trend_monitor_service import (
+    compute_three_month_metric_summary,
+    evaluate_three_month_increasing_trend,
+)
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 health_collection = db["health_records"]
+
 
 @router.get("/trend/{metric_name}")
 def detect_trend(
     metric_name: str,
     current_user: dict = Depends(require_role("patient"))
 ):
-    now = datetime.utcnow()
-
-    last_30_days = now - timedelta(days=30)
-    previous_60_days = now - timedelta(days=60)
-
-    # Fetch last 30 days data
-    recent_records = list(
-        health_collection.find(
-            {
-                "patient_id": current_user["email"],
-                "timestamp": {"$gte": last_30_days},
-                "metrics.name": metric_name
-            },
-            {"_id": 0}
-        )
+    summary = compute_three_month_metric_summary(
+        health_collection,
+        patient_id=current_user["email"],
+        metric_name=metric_name,
     )
+    evaluation = evaluate_three_month_increasing_trend(summary)
 
-    # Fetch previous 30–60 days data
-    older_records = list(
-        health_collection.find(
-            {
-                "patient_id": current_user["email"],
-                "timestamp": {
-                    "$gte": previous_60_days,
-                    "$lt": last_30_days
-                },
-                "metrics.name": metric_name
-            },
-            {"_id": 0}
-        )
-    )
+    if evaluation["trend"] == "insufficient_data":
+        raise HTTPException(status_code=404, detail="Not enough 3-month data")
 
-    if not recent_records or not older_records:
-        raise HTTPException(status_code=404, detail="Not enough data")
-
-    def extract_values(records):
-        values = []
-        for record in records:
-            for metric in record.get("metrics", []):
-                if metric["name"] == metric_name:
-                    values.append(metric["value"])
-        return values
-
-    recent_values = extract_values(recent_records)
-    older_values = extract_values(older_records)
-
-    if not recent_values or not older_values:
+    averages = summary.get("bucket_averages", [None, None, None])
+    month1, month2, month3 = averages
+    if month1 is None or month2 is None or month3 is None:
         raise HTTPException(status_code=404, detail="Metric data missing")
 
-    recent_avg = sum(recent_values) / len(recent_values)
-    older_avg = sum(older_values) / len(older_values)
-
-    if recent_avg > older_avg:
+    if month1 < month2 < month3:
         trend = "increasing"
-    elif recent_avg < older_avg:
+    elif month1 > month2 > month3:
         trend = "decreasing"
     else:
-        trend = "stable"
+        trend = "fluctuating"
 
     return {
         "metric": metric_name,
-        "previous_avg": older_avg,
-        "recent_avg": recent_avg,
-        "trend": trend
+        "trend": trend,
+        "window_days": summary["window_days"],
+        "month1_avg": month1,
+        "month2_avg": month2,
+        "month3_avg": month3,
+        "month1_count": summary["bucket_counts"][0],
+        "month2_count": summary["bucket_counts"][1],
+        "month3_count": summary["bucket_counts"][2],
+        "alert_recommended": evaluation["alert"],
+        "evaluation_reason": evaluation["reason"],
     }

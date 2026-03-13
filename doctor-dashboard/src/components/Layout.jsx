@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, FileCheck, Bell, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, FileCheck, Bell, ShieldCheck, CalendarClock, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import "../styles/layout.css";
@@ -8,6 +8,7 @@ import { getNotifications } from "../services/doctorService";
 
 const Layout = ({ children }) => {
   const [notifCount, setNotifCount] = useState(0);
+  const [doctorName, setDoctorName] = useState("");
   const navigate = useNavigate();
 
   const refreshNotifications = () => {
@@ -26,18 +27,23 @@ const Layout = ({ children }) => {
   };
 
   useEffect(() => {
+    setDoctorName(localStorage.getItem("name") || "Doctor");
     refreshNotifications();
+    const poller = setInterval(refreshNotifications, 15000);
 
     const handleNotificationsChanged = () => refreshNotifications();
     window.addEventListener("notifications:changed", handleNotificationsChanged);
 
     return () => {
+      clearInterval(poller);
       window.removeEventListener("notifications:changed", handleNotificationsChanged);
     };
   }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("name");
+    localStorage.removeItem("email");
     navigate("/login");
   };
 
@@ -46,6 +52,16 @@ const Layout = ({ children }) => {
       <div className="sidebar">
         <div>
           <h2 className="logo">HealthSync</h2>
+          <div
+            style={{
+              color: "#e2e8f0",
+              marginBottom: "12px",
+              fontWeight: 700,
+              fontSize: "14px",
+            }}
+          >
+            Dr. {doctorName}
+          </div>
           <div className="section-copy" style={{ color: "#94a3b8", marginBottom: "24px" }}>
             Doctor command center
           </div>
@@ -81,6 +97,14 @@ const Layout = ({ children }) => {
                   {notifCount}
                 </span>
               )}
+            </Link>
+
+            <Link to="/audit-logs" className="nav-item">
+              <ShieldCheck size={18} /> Audit Logs
+            </Link>
+
+            <Link to="/appointments" className="nav-item">
+              <CalendarClock size={18} /> Appointments
             </Link>
           </nav>
         </div>

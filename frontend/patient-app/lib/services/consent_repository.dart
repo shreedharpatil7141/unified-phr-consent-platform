@@ -1,5 +1,6 @@
 import '../services/api_service.dart';
 import '../models/consent_model.dart';
+import '../utils/server_time.dart';
 
 class ConsentRepository {
 
@@ -44,9 +45,9 @@ class ConsentRepository {
         doctor: c["doctor_id"] ?? "Unknown Doctor",
         request: formatCategories(c["categories"] ?? []),
         duration: (c["access_duration_minutes"] ?? 0).toString(),
-        requestedAt: DateTime.tryParse(c["requested_at"]?.toString() ?? ""),
-        approvedAt: DateTime.tryParse(c["approved_at"]?.toString() ?? ""),
-        expiresAt: DateTime.tryParse(c["expires_at"]?.toString() ?? ""),
+        requestedAt: parseServerTime(c["requested_at"]),
+        approvedAt: parseServerTime(c["approved_at"]),
+        expiresAt: parseServerTime(c["expires_at"]),
         status: c["status"] ?? "pending",
       );
 

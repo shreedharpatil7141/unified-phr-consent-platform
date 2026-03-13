@@ -154,6 +154,11 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                   ),
 
                   DropdownMenuItem(
+                    value: "radiology",
+                    child: Text("Radiology"),
+                  ),
+
+                  DropdownMenuItem(
                     value: "respiratory",
                     child: Text("Respiratory"),
                   ),

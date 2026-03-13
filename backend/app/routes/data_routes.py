@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.config.database import db
 from app.core.dependencies import require_role
 from app.services.audit_service import log_audit_event, log_data_access, get_access_summary
@@ -9,6 +9,7 @@ from app.services.normalization_service import (
     normalize_record_type,
     normalize_source,
 )
+import re
 
 router = APIRouter(prefix="/data", tags=["Data Access"])
 
@@ -18,6 +19,14 @@ users_collection = db["users"]
 
 
 REQUEST_TERM_ALIASES = {
+    "documents": {
+        "categories": ["lab_report", "lab_reports", "prescription", "prescriptions", "vaccination", "vaccines"],
+        "domains": [],
+    },
+    "document": {
+        "categories": ["lab_report", "lab_reports", "prescription", "prescriptions", "vaccination", "vaccines"],
+        "domains": [],
+    },
     "lab_reports": {
         "categories": ["lab_reports", "lab_report"],
         "domains": [],
@@ -54,9 +63,37 @@ REQUEST_TERM_ALIASES = {
         "categories": ["lab_report", "lab_reports"],
         "domains": ["hematology"],
     },
+    "hemotology": {
+        "categories": ["lab_report", "lab_reports"],
+        "domains": ["hematology"],
+    },
     "radiology": {
         "categories": ["lab_report", "lab_reports", "other"],
         "domains": ["radiology"],
+    },
+    "metabolic": {
+        "categories": ["lab_report", "lab_reports", "vitals"],
+        "domains": ["metabolic"],
+    },
+    "renal": {
+        "categories": ["lab_report", "lab_reports"],
+        "domains": ["renal"],
+    },
+    "hepatic": {
+        "categories": ["lab_report", "lab_reports"],
+        "domains": ["hepatic"],
+    },
+    "respiratory": {
+        "categories": ["lab_report", "lab_reports", "vitals"],
+        "domains": ["respiratory"],
+    },
+    "wellness": {
+        "categories": ["lab_report", "lab_reports", "vitals", "vaccination", "vaccines"],
+        "domains": ["wellness", "general"],
+    },
+    "general_wellness": {
+        "categories": ["lab_report", "lab_reports", "vitals", "vaccination", "vaccines"],
+        "domains": ["wellness", "general"],
     },
     "vitals": {
         "categories": ["vitals"],
@@ -86,6 +123,18 @@ def _record_timestamp(record):
     return timestamp
 
 
+def _infer_document_year(record) -> int | None:
+    for key in ("record_name", "file_name", "notes"):
+        value = str(record.get(key) or "")
+        match = re.search(r"(19|20)\d{2}", value)
+        if match:
+            try:
+                return int(match.group(0))
+            except ValueError:
+                continue
+    return None
+
+
 def _matches_requested_term(record, term: str) -> bool:
     category = normalize_category(record.get("category"))
     domain = normalize_domain(record.get("domain"))
@@ -102,6 +151,9 @@ def _matches_requested_term(record, term: str) -> bool:
     if term in {"vaccination", "vaccines", "vaccine"}:
         return category in {"vaccination", "vaccine"}
 
+    if term in {"document", "documents"}:
+        return category in {"lab_report", "prescription", "vaccination", "vaccine"} or has_file
+
     if term == "vitals":
         return (
             category == "vitals"
@@ -110,8 +162,16 @@ def _matches_requested_term(record, term: str) -> bool:
         ) and not has_file
 
     if term in {"cardiac", "cardiology"}:
+        searchable = " ".join(
+            [
+                str(record.get("record_type") or ""),
+                str(record.get("record_name") or ""),
+                str(record.get("notes") or ""),
+            ]
+        ).lower()
         return (
             domain in {"cardiac", "cardiology"}
+            or ("ecg" in searchable or "echo" in searchable or "cholesterol" in searchable or "lipid" in searchable or "troponin" in searchable)
             or (
                 not has_file and (
                     category == "vitals"
@@ -121,7 +181,14 @@ def _matches_requested_term(record, term: str) -> bool:
             )
         )
 
-    if term in {"hematology", "radiology", "metabolic", "renal", "respiratory"}:
+    if term in {"hematology", "radiology", "metabolic", "renal", "hepatic", "respiratory"}:
+        return domain == term
+
+    if term in {"wellness", "general_wellness", "general"}:
+        if domain in {"wellness", "general"}:
+            return True
+        if term == "wellness" and category in {"vaccination", "vaccine"}:
+            return True
         return domain == term
 
     return category == term or domain == term or record_type == term
@@ -139,8 +206,16 @@ def _record_is_within_consent(record, consent) -> bool:
     date_to = consent.get("date_to")
 
     if date_from and timestamp < date_from:
+        if record.get("file_name") or record.get("file_url"):
+            inferred_year = _infer_document_year(record)
+            if inferred_year is not None and date_from.year <= inferred_year <= (date_to.year if date_to else inferred_year):
+                return True
         return False
     if date_to and timestamp > date_to:
+        if record.get("file_name") or record.get("file_url"):
+            inferred_year = _infer_document_year(record)
+            if inferred_year is not None and (date_from.year if date_from else inferred_year) <= inferred_year <= date_to.year:
+                return True
         return False
     return True
 
@@ -171,11 +246,6 @@ def _filter_records_for_consent(records, consent):
     for record in records:
         matched = any(_matches_requested_term(record, term) for term in requested_terms)
         if not matched:
-            continue
-
-        has_file = bool(record.get("file_name") or record.get("file_url"))
-        if has_file:
-            filtered_records.append(record)
             continue
 
         if _record_is_within_consent(record, consent):
@@ -292,6 +362,37 @@ def view_patient_data(
 
     if consent["status"] != "approved":
         raise HTTPException(status_code=403, detail="Consent not approved")
+
+    # Auto-correct future access windows that drift due to timezone/UI mismatch:
+    # align to approved_at + configured duration so approved consents are usable immediately.
+    if (
+        consent.get("access_from")
+        and consent["access_from"] > datetime.utcnow()
+        and consent.get("approved_at")
+        and consent.get("access_duration_minutes")
+    ):
+        corrected_from = consent["approved_at"]
+        corrected_to = corrected_from + timedelta(minutes=int(consent["access_duration_minutes"]))
+        if corrected_to > datetime.utcnow():
+            consent_collection.update_one(
+                {"consent_id": consent_id},
+                {
+                    "$set": {
+                        "access_from": corrected_from,
+                        "access_to": corrected_to,
+                        "expires_at": corrected_to,
+                    }
+                },
+            )
+            consent["access_from"] = corrected_from
+            consent["access_to"] = corrected_to
+            consent["expires_at"] = corrected_to
+
+    if consent.get("access_from") and consent["access_from"] > datetime.utcnow():
+        raise HTTPException(
+            status_code=403,
+            detail=f"Consent access window not started yet. Starts at {consent['access_from'].isoformat()} UTC"
+        )
 
     if consent.get("expires_at") and consent["expires_at"] < datetime.utcnow():
         raise HTTPException(status_code=403, detail="Consent expired")

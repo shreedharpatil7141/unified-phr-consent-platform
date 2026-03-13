@@ -9,7 +9,9 @@ import '../services/api_service.dart';
 import '../services/app_refresh_notifier.dart';
 import '../services/health_record_repository.dart';
 import '../services/health_service.dart';
+import '../utils/server_time.dart';
 import 'alerts_screen.dart';
+import 'appointments_screen.dart';
 import 'health_timeline_screen.dart';
 import 'lab_reports_screen.dart';
 import 'notifications_screen.dart';
@@ -107,9 +109,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 request: (c["categories"] as List<dynamic>).join(", "),
                 duration: c["access_duration_minutes"].toString(),
                 status: c["status"],
-                requestedAt: DateTime.tryParse(c["requested_at"]?.toString() ?? ""),
-                approvedAt: DateTime.tryParse(c["approved_at"]?.toString() ?? ""),
-                expiresAt: DateTime.tryParse(c["expires_at"]?.toString() ?? ""),
+                requestedAt: parseServerTime(c["requested_at"]),
+                approvedAt: parseServerTime(c["approved_at"]),
+                expiresAt: parseServerTime(c["expires_at"]),
               ))
           .where((c) => c.status == "pending")
           .toList();
@@ -117,7 +119,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       loading = false;
     });
 
-    unawaited(syncPriorityVitalsToBackend(watchData));
     unawaited(syncWatchRecordsToBackend(watchData));
     _isRefreshing = false;
   }
@@ -130,10 +131,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final heartRateCount =
           (types["heart_rate"]?["count"] ?? types["heart rate"]?["count"] ?? 0);
       final lastSyncRaw = summary["last_sync_at"]?.toString();
-      final lastSyncAt = lastSyncRaw != null ? DateTime.tryParse(lastSyncRaw) : null;
+      final lastSyncAt = lastSyncRaw != null ? parseServerTime(lastSyncRaw) : null;
       _backendHeartRateCount = heartRateCount;
       _backendVitalCount = total;
-      _lastVitalsSyncAt = lastSyncAt?.toLocal().toString();
+      _lastVitalsSyncAt = lastSyncAt?.toString();
       _vitalsSyncStatus = "Backend synced vitals: $total total, heart rate: $heartRateCount";
     } catch (e) {
       _vitalsSyncStatus = "Vitals sync status unavailable";
@@ -148,25 +149,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     for (final point in data) {
       String type;
+      String unit = "";
       if (point.type == HealthDataType.STEPS) {
         type = "Steps";
+        unit = "steps";
       } else if (point.type == HealthDataType.HEART_RATE ||
           point.type == HealthDataType.RESTING_HEART_RATE) {
         type = "Heart Rate";
+        unit = "bpm";
       } else if (point.type == HealthDataType.DISTANCE_DELTA) {
         type = "Distance";
+        unit = "km";
       } else if (point.type == HealthDataType.ACTIVE_ENERGY_BURNED) {
         type = "Calories Burned";
+        unit = "kcal";
       } else if (point.type == HealthDataType.SLEEP_ASLEEP) {
         type = "Sleep";
+        unit = "hours";
       } else {
         type = point.type.toString();
       }
 
       final rawValue = point.value.toString();
       final numericMatch = RegExp(r'[-+]?\d*\.?\d+').firstMatch(rawValue);
-      final value = numericMatch?.group(0) ?? "";
-      if (value.isEmpty) continue;
+      final parsedValue = double.tryParse(numericMatch?.group(0) ?? "");
+      if (parsedValue == null) continue;
+
+      final normalizedValue = switch (point.type) {
+        // Health Connect distance delta is meters; store internally as km.
+        HealthDataType.DISTANCE_DELTA => parsedValue / 1000.0,
+        // Some providers emit sleep in minutes.
+        HealthDataType.SLEEP_ASLEEP => parsedValue > 24 ? parsedValue / 60.0 : parsedValue,
+        _ => parsedValue,
+      };
+      final value = normalizedValue.toStringAsFixed(
+        point.type == HealthDataType.DISTANCE_DELTA ? 3 : 2,
+      );
 
       recordsByType.putIfAbsent(type, () => []).add(
             HealthRecord(
@@ -175,8 +193,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               type: type,
               domain: type == "Heart Rate" ? "cardiac" : "wellness",
               value: value,
-              unit: "",
-              source: "smartwatch",
+              unit: unit,
+              source: "wearable",
               timestamp: point.dateFrom,
             ),
           );
@@ -210,27 +228,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> syncPriorityVitalsToBackend(List<HealthRecord> watchRecords) async {
-    final priority = watchRecords.where((r) => r.type == "Heart Rate").take(24).map((record) {
-      return {
-        "source": "smartwatch",
-        "category": "vitals",
-        "record_type": record.type,
-        "domain": "cardiac",
-        "value": record.value,
-        "unit": record.unit,
-        "timestamp": record.timestamp.toIso8601String(),
-        "provider": "Health Connect",
-      };
-    }).toList();
-    if (priority.isEmpty) return;
-    try {
-      await ApiService.syncWearableRecords(priority);
-      await refreshVitalsSyncStatus();
-      if (mounted) setState(() {});
-    } catch (_) {}
-  }
-
   Future<void> syncVitalsNow() async {
     if (_isManualVitalsSyncing) return;
     setState(() {
@@ -240,7 +237,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final watchData = await buildSmartwatchRecords();
       HealthRecordRepository.setWatchRecords(watchData);
-      await syncPriorityVitalsToBackend(watchData);
       await syncWatchRecordsToBackend(watchData);
       await HealthRecordRepository.loadFromServer();
       if (!mounted) return;
@@ -265,23 +261,86 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   String getLatestValue(String type) {
-    final vitalRecords = records.where((r) => r.type == type && r.source == "smartwatch").toList()
+    final vitalRecords = records
+        .where((r) => r.type == type && (r.source == "wearable" || r.source == "smartwatch"))
+        .toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     if (vitalRecords.isEmpty) return "0";
-    
-    final value = double.tryParse(vitalRecords.last.value) ?? 0;
-    
-    // Format based on type
-    if (type == "Heart Rate" || type == "Steps" || type == "Sleep") {
+
+    final now = DateTime.now();
+    bool isSameDay(DateTime value) =>
+        value.year == now.year && value.month == now.month && value.day == now.day;
+
+    // Heart rate should reflect latest sample, not a daily sum.
+    if (type == "Heart Rate") {
+      final latest = vitalRecords.last;
+      final latestValue = double.tryParse(latest.value) ?? 0;
+      return latestValue.toStringAsFixed(0);
+    }
+
+    final todayRecords = vitalRecords.where((r) => isSameDay(r.timestamp)).toList();
+    if (todayRecords.isEmpty) return "0";
+
+    bool looksCumulative(List<double> values) {
+      if (values.length < 3) return false;
+      int nonDecreasing = 0;
+      for (int i = 1; i < values.length; i++) {
+        if (values[i] >= values[i - 1]) nonDecreasing++;
+      }
+      return nonDecreasing >= (values.length - 1) * 0.8;
+    }
+
+    if (type == "Steps") {
+      final values = todayRecords
+          .map((r) => double.tryParse(r.value) ?? 0)
+          .where((v) => v > 0)
+          .toList()
+        ..sort();
+      if (values.isEmpty) return "0";
+
+      final value = looksCumulative(values)
+          ? values.last
+          : values.fold<double>(0, (sum, v) => sum + v);
       return value.toStringAsFixed(0);
-    } else if (type == "Distance") {
+    }
+
+    if (type == "Distance") {
+      final normalized = <double>[];
+      for (final record in todayRecords) {
+        var value = double.tryParse(record.value) ?? 0;
+        final unit = record.unit.toLowerCase();
+        if (unit == "m" || unit == "meter" || unit == "meters") {
+          value = value / 1000.0;
+        } else if (unit == "km" && value > 20) {
+          // Backward compatibility: older app builds could save meter deltas as km.
+          value = value / 1000.0;
+        }
+        normalized.add(value);
+      }
+      final cleaned = normalized.where((v) => v > 0).toList()..sort();
+      if (cleaned.isEmpty) return "0";
+      final value = looksCumulative(cleaned)
+          ? cleaned.last
+          : cleaned.fold<double>(0, (sum, v) => sum + v);
       return value.toStringAsFixed(2);
     }
-    return vitalRecords.last.value;
+
+    if (type == "Sleep") {
+      final values = todayRecords
+          .map((r) => double.tryParse(r.value) ?? 0)
+          .where((v) => v > 0)
+          .toList();
+      if (values.isEmpty) return "0";
+      final totalHours = values.fold<double>(0, (sum, value) => sum + value);
+      return totalHours.toStringAsFixed(1);
+    }
+
+    final latest = todayRecords.last;
+    return latest.value;
   }
 
   Future<void> deleteRecord(HealthRecord record) async {
-    if (record.source == "smartwatch") return;
+    if (record.source == "smartwatch" || record.source == "wearable") return;
     await ApiService.deleteRecord(record.id);
     HealthRecordRepository.removeRecord(record.id);
     if (!mounted) return;
@@ -303,6 +362,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const Text("My Health"),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            tooltip: "Appointments",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AppointmentsScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.timeline_outlined),
             onPressed: () {

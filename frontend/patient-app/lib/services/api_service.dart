@@ -4,7 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
 
-  static const baseUrl = "http://192.168.0.104:8000";
+  static const baseUrl = String.fromEnvironment(
+    "API_BASE_URL",
+    defaultValue: "http://192.168.0.102:8000",
+  );
 
   //////////////////////////////////////////////////////
   /// LOGIN
@@ -609,6 +612,246 @@ class ApiService {
     } else {
       throw Exception("Failed to generate AI insight: ${response.body}");
     }
+  }
+
+  //////////////////////////////////////////////////////
+  /// AUDIT LOGS
+  //////////////////////////////////////////////////////
+
+  static Future<Map<String, dynamic>> getPatientAccessAudit({int daysBack = 30}) async {
+    String? token = await getToken();
+    if (token == null) throw Exception("User not logged in");
+
+    final response = await http.get(
+      Uri.parse("$baseUrl/consent/audit-logs/patient-accesses?days_back=$daysBack"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception("Failed to load patient access audit: ${response.body}");
+    }
+  }
+
+  static Future<Map<String, dynamic>> getConsentAuditTrail(String consentId) async {
+    String? token = await getToken();
+    if (token == null) throw Exception("User not logged in");
+
+    final response = await http.get(
+      Uri.parse("$baseUrl/consent/audit-logs/consent-audit/$consentId"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception("Failed to load consent audit trail: ${response.body}");
+    }
+  }
+
+  //////////////////////////////////////////////////////
+  /// FAMILY PROFILES
+  //////////////////////////////////////////////////////
+
+  static Future<Map<String, dynamic>> requestFamilyLink({
+    required String memberEmail,
+    required String relation,
+  }) async {
+    String? token = await getToken();
+    if (token == null) throw Exception("User not logged in");
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/family/request-link"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({
+        "member_email": memberEmail.trim().toLowerCase(),
+        "relation": relation.trim(),
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception("Failed to send family request: ${response.body}");
+  }
+
+  static Future<List<dynamic>> getIncomingFamilyRequests() async {
+    String? token = await getToken();
+    if (token == null) throw Exception("User not logged in");
+
+    final response = await http.get(
+      Uri.parse("$baseUrl/family/requests/incoming"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    throw Exception("Failed to load incoming family requests: ${response.body}");
+  }
+
+  static Future<List<dynamic>> getOutgoingFamilyRequests() async {
+    String? token = await getToken();
+    if (token == null) throw Exception("User not logged in");
+
+    final response = await http.get(
+      Uri.parse("$baseUrl/family/requests/outgoing"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    throw Exception("Failed to load outgoing family requests: ${response.body}");
+  }
+
+  static Future<Map<String, dynamic>> respondFamilyRequest({
+    required String linkId,
+    required String action,
+  }) async {
+    String? token = await getToken();
+    if (token == null) throw Exception("User not logged in");
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/family/requests/$linkId/respond"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({"action": action}),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception("Failed to respond to family request: ${response.body}");
+  }
+
+  static Future<Map<String, dynamic>> getLinkedFamilyProfiles() async {
+    String? token = await getToken();
+    if (token == null) throw Exception("User not logged in");
+
+    final response = await http.get(
+      Uri.parse("$baseUrl/family/linked-profiles"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception("Failed to load linked profiles: ${response.body}");
+  }
+
+  //////////////////////////////////////////////////////
+  /// APPOINTMENTS
+  //////////////////////////////////////////////////////
+
+  static Future<Map<String, dynamic>> requestAppointment({
+    required String doctorEmail,
+    required DateTime scheduledFor,
+    required String reason,
+    String? notes,
+  }) async {
+    String? token = await getToken();
+    if (token == null) throw Exception("User not logged in");
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/appointments/request"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({
+        "doctor_email": doctorEmail.trim().toLowerCase(),
+        "scheduled_for": scheduledFor.toUtc().toIso8601String(),
+        "reason": reason.trim(),
+        "notes": (notes ?? "").trim(),
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception("Failed to request appointment: ${response.body}");
+  }
+
+  static Future<List<dynamic>> getMyAppointments() async {
+    String? token = await getToken();
+    if (token == null) throw Exception("User not logged in");
+
+    final response = await http.get(
+      Uri.parse("$baseUrl/appointments/my"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    throw Exception("Failed to load appointments: ${response.body}");
+  }
+
+  static Future<Map<String, dynamic>> cancelAppointment({
+    required String appointmentId,
+    String? note,
+  }) async {
+    String? token = await getToken();
+    if (token == null) throw Exception("User not logged in");
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/appointments/$appointmentId/cancel"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({"note": note ?? ""}),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception("Failed to cancel appointment: ${response.body}");
+  }
+
+  static Future<Map<String, dynamic>> deleteAppointment({
+    required String appointmentId,
+  }) async {
+    String? token = await getToken();
+    if (token == null) throw Exception("User not logged in");
+
+    final response = await http.delete(
+      Uri.parse("$baseUrl/appointments/$appointmentId"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception("Failed to delete appointment: ${response.body}");
   }
 
 }

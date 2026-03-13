@@ -14,6 +14,8 @@ from app.routes.alert_routes import router as alert_router
 from app.routes.notification_routes import router as notification_router
 from app.routes.ai_routes import router as ai_router
 from app.routes.admin_routes import router as admin_router
+from app.routes.family_routes import router as family_router
+from app.routes.appointment_routes import router as appointment_router
 
 app = FastAPI()
 
@@ -38,4 +40,6 @@ app.include_router(alert_router)
 app.include_router(notification_router)
 app.include_router(ai_router)
 app.include_router(admin_router)
+app.include_router(family_router)
+app.include_router(appointment_router)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")

@@ -4,19 +4,19 @@ import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import ConsentTimer from "../components/ConsentTimer";
 import "../styles/dashboard.css";
+import { formatServerDateTime, toTimestamp } from "../utils/dateTime";
 
 const formatDateTime = (value) =>
-  value
-    ? new Date(value).toLocaleString([], {
-        day: "numeric",
-        month: "short",
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : "Unknown";
+  formatServerDateTime(value, {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 
 const Patients = () => {
   const [consents, setConsents] = useState([]);
+  const [nowTs, setNowTs] = useState(Date.now());
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,12 +26,17 @@ const Patients = () => {
           .filter((consent) => consent.status === "approved")
           .sort(
             (a, b) =>
-              new Date(b.approved_at || b.requested_at || 0) -
-              new Date(a.approved_at || a.requested_at || 0)
+              toTimestamp(b.approved_at || b.requested_at || 0) -
+              toTimestamp(a.approved_at || a.requested_at || 0)
           );
         setConsents(approved);
       })
       .catch((err) => console.error(err));
+  }, []);
+
+  useEffect(() => {
+    const ticker = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(ticker);
   }, []);
 
   return (
@@ -43,7 +48,12 @@ const Patients = () => {
       )}
 
       <div className="insight-list">
-        {consents.map((consent) => (
+        {consents.map((consent) => {
+          const isExpired =
+            !!consent.expires_at &&
+            toTimestamp(consent.expires_at) <= nowTs;
+
+          return (
           <div key={consent.consent_id} className="card patient-list-card">
             <div className="timeline-row">
               <div>
@@ -56,7 +66,7 @@ const Patients = () => {
             </div>
 
             <div className="document-meta" style={{ marginTop: "10px" }}>
-              {consent.categories?.join(", ") || "No categories"} - {consent.status}
+              {consent.categories?.join(", ") || "No categories"} - {isExpired ? "expired" : consent.status}
             </div>
             <div style={{ marginTop: "10px" }}>
               <ConsentTimer expiresAt={consent.expires_at} />
@@ -64,14 +74,19 @@ const Patients = () => {
 
             <div className="document-link-wrap">
               <button
-                onClick={() => navigate(`/patient/${consent.consent_id}`)}
+                onClick={() => {
+                  if (isExpired) return;
+                  navigate(`/patient/${consent.consent_id}`);
+                }}
                 className="primary-button"
+                disabled={isExpired}
+                style={isExpired ? { opacity: 0.6, cursor: "not-allowed" } : undefined}
               >
-                Open Dashboard
+                {isExpired ? "Consent Expired" : "Open Dashboard"}
               </button>
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );

@@ -9,21 +9,34 @@ import {
   requestConsent,
 } from "../services/doctorService";
 import "../styles/dashboard.css";
+import { formatServerDate, formatServerDateTime, toTimestamp } from "../utils/dateTime";
 
 const CATEGORY_OPTIONS = [
-  { label: "Cardiology", value: "cardiology" },
+  { label: "Cardiac", value: "cardiac" },
+  { label: "Metabolic", value: "metabolic" },
+  { label: "Renal", value: "renal" },
+  { label: "Hepatic", value: "hepatic" },
   { label: "Hematology", value: "hematology" },
+  { label: "Respiratory", value: "respiratory" },
+  { label: "General Wellness", value: "wellness" },
   { label: "Radiology", value: "radiology" },
   { label: "Lab Reports", value: "lab_report" },
   { label: "Prescriptions", value: "prescription" },
+  { label: "Vaccines", value: "vaccination" },
   { label: "Vitals", value: "vitals" },
 ];
 
 const EMPTY_COUNTS = { pending: 0, active: 0, expired: 0 };
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 10 }, (_, index) => CURRENT_YEAR - index);
+const toDateTimeLocalValue = (date) => {
+  const pad = (n) => n.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 
 const normalizeStatus = (request) => {
   if (request.status === "approved" && request.expires_at) {
-    if (new Date(request.expires_at) <= new Date()) {
+    if (toTimestamp(request.expires_at) <= Date.now()) {
       return "expired";
     }
     return "active";
@@ -35,8 +48,11 @@ const normalizeStatus = (request) => {
 const ConsentRequests = () => {
   const [patientEmail, setPatientEmail] = useState("");
   const [categories, setCategories] = useState([]);
+  const [selectedYear, setSelectedYear] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [accessFrom, setAccessFrom] = useState("");
+  const [accessTo, setAccessTo] = useState("");
   const [accessDuration, setAccessDuration] = useState(60);
   const [requests, setRequests] = useState([]);
   const [activeTab, setActiveTab] = useState("pending");
@@ -62,14 +78,22 @@ const ConsentRequests = () => {
   }, []);
 
   useEffect(() => {
-    if (!dateFrom || !dateTo) return;
+    if (accessFrom && accessTo) return;
+    const now = new Date();
+    const plusOneHour = new Date(now.getTime() + 60 * 60 * 1000);
+    setAccessFrom(toDateTimeLocalValue(now));
+    setAccessTo(toDateTimeLocalValue(plusOneHour));
+  }, [accessFrom, accessTo]);
+
+  useEffect(() => {
+    if (!accessFrom || !accessTo) return;
 
     const diffMinutes = Math.floor(
-      (new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 60000
+      (new Date(accessTo).getTime() - new Date(accessFrom).getTime()) / 60000
     );
 
     setAccessDuration(diffMinutes > 0 ? diffMinutes : 0);
-  }, [dateFrom, dateTo]);
+  }, [accessFrom, accessTo]);
 
   const requestsByStatus = useMemo(() => {
     return requests.reduce((acc, request) => {
@@ -93,15 +117,15 @@ const ConsentRequests = () => {
 
     if (activeTab === "active") {
       return current.sort((left, right) => {
-        const leftExpiry = new Date(left.expires_at || 0).getTime();
-        const rightExpiry = new Date(right.expires_at || 0).getTime();
+        const leftExpiry = toTimestamp(left.expires_at || 0);
+        const rightExpiry = toTimestamp(right.expires_at || 0);
         return leftExpiry - rightExpiry;
       });
     }
 
     return current.sort((left, right) => {
-      const leftTime = new Date(left.requested_at || 0).getTime();
-      const rightTime = new Date(right.requested_at || 0).getTime();
+      const leftTime = toTimestamp(left.requested_at || 0);
+      const rightTime = toTimestamp(right.requested_at || 0);
       return rightTime - leftTime;
     });
   }, [activeTab, requestsByStatus]);
@@ -115,13 +139,25 @@ const ConsentRequests = () => {
   };
 
   const sendRequest = async () => {
-    if (!patientEmail || categories.length === 0 || !dateFrom || !dateTo) {
-      alert("Please complete patient, scope, and consent window.");
+    const requestDateFrom = selectedYear
+      ? `${selectedYear}-01-01T00:00`
+      : dateFrom;
+    const requestDateTo = selectedYear
+      ? `${selectedYear}-12-31T23:59`
+      : dateTo;
+
+    if (!patientEmail || categories.length === 0 || !requestDateFrom || !requestDateTo || !accessFrom || !accessTo) {
+      alert("Please complete patient, scope, data range, and consent access window.");
       return;
     }
 
-    if (new Date(dateTo) <= new Date(dateFrom)) {
-      alert("Consent end time must be after start time.");
+    if (new Date(requestDateTo) <= new Date(requestDateFrom)) {
+      alert("Data range end must be after data range start.");
+      return;
+    }
+
+    if (new Date(accessTo) <= new Date(accessFrom)) {
+      alert("Access end time must be after access start time.");
       return;
     }
 
@@ -136,16 +172,21 @@ const ConsentRequests = () => {
       await requestConsent(
         patientEmail,
         categories,
-        dateFrom,
-        dateTo,
+        requestDateFrom,
+        requestDateTo,
         accessDuration,
+        accessFrom,
+        accessTo,
         token
       );
 
       setPatientEmail("");
       setCategories([]);
+      setSelectedYear("");
       setDateFrom("");
       setDateTo("");
+      setAccessFrom("");
+      setAccessTo("");
       setAccessDuration(60);
       setActiveTab("pending");
       await loadRequests();
@@ -228,22 +269,60 @@ const ConsentRequests = () => {
           </label>
 
           <label className="field-group">
-            <span className="field-label">Consent from</span>
+            <span className="field-label">Year (optional)</span>
+            <select
+              className="field-input"
+              value={selectedYear}
+              onChange={(event) => setSelectedYear(event.target.value)}
+            >
+              <option value="">Custom range</option>
+              {YEAR_OPTIONS.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field-group">
+            <span className="field-label">Data range from</span>
             <input
               className="field-input"
               type="datetime-local"
               value={dateFrom}
+              disabled={Boolean(selectedYear)}
               onChange={(event) => setDateFrom(event.target.value)}
             />
           </label>
 
           <label className="field-group">
-            <span className="field-label">Consent until</span>
+            <span className="field-label">Data range until</span>
             <input
               className="field-input"
               type="datetime-local"
               value={dateTo}
+              disabled={Boolean(selectedYear)}
               onChange={(event) => setDateTo(event.target.value)}
+            />
+          </label>
+
+          <label className="field-group">
+            <span className="field-label">Access from</span>
+            <input
+              className="field-input"
+              type="datetime-local"
+              value={accessFrom}
+              onChange={(event) => setAccessFrom(event.target.value)}
+            />
+          </label>
+
+          <label className="field-group">
+            <span className="field-label">Access until</span>
+            <input
+              className="field-input"
+              type="datetime-local"
+              value={accessTo}
+              onChange={(event) => setAccessTo(event.target.value)}
             />
           </label>
         </div>
@@ -271,14 +350,24 @@ const ConsentRequests = () => {
             <span className="debug-value">{categories.join(", ") || "None"}</span>
           </div>
           <div className="debug-pill">
-            <span className="debug-label">Consent duration</span>
+            <span className="debug-label">Access duration</span>
             <span className="debug-value">{accessDuration} minutes</span>
           </div>
           <div className="debug-pill">
-            <span className="debug-label">Consent window</span>
+            <span className="debug-label">Data range</span>
             <span className="debug-value">
-              {dateFrom ? new Date(dateFrom).toLocaleString() : "N/A"} -{" "}
-              {dateTo ? new Date(dateTo).toLocaleString() : "N/A"}
+              {selectedYear
+                ? `Jan 1, ${selectedYear} - Dec 31, ${selectedYear}`
+                : `${dateFrom ? new Date(dateFrom).toLocaleString() : "N/A"} - ${
+                    dateTo ? new Date(dateTo).toLocaleString() : "N/A"
+                  }`}
+            </span>
+          </div>
+          <div className="debug-pill">
+            <span className="debug-label">Access window</span>
+            <span className="debug-value">
+              {accessFrom ? new Date(accessFrom).toLocaleString() : "N/A"} -{" "}
+              {accessTo ? new Date(accessTo).toLocaleString() : "N/A"}
             </span>
           </div>
         </div>
@@ -348,19 +437,23 @@ const ConsentRequests = () => {
                 <div className="consent-card-grid">
                   <div className="consent-metadata">
                     <CalendarClock size={14} />
-                    Requested: {request.requested_at ? new Date(request.requested_at).toLocaleString() : "N/A"}
+                    Requested: {request.requested_at ? formatServerDateTime(request.requested_at) : "N/A"}
                   </div>
                   <div className="consent-metadata">
                     <Clock3 size={14} />
                     Access: {request.access_duration_minutes || 0} minutes
                   </div>
                   <div className="consent-metadata">
-                    Range: {request.date_from ? new Date(request.date_from).toLocaleDateString() : "N/A"} -{" "}
-                    {request.date_to ? new Date(request.date_to).toLocaleDateString() : "N/A"}
+                    Range: {request.date_from ? formatServerDate(request.date_from) : "N/A"} -{" "}
+                    {request.date_to ? formatServerDate(request.date_to) : "N/A"}
+                  </div>
+                  <div className="consent-metadata">
+                    Access window: {request.access_from ? formatServerDateTime(request.access_from) : "Starts on approval"} -{" "}
+                    {request.access_to ? formatServerDateTime(request.access_to) : "Until duration ends"}
                   </div>
                   {request.approved_at && (
                     <div className="consent-metadata">
-                      Approved: {new Date(request.approved_at).toLocaleString()}
+                      Approved: {formatServerDateTime(request.approved_at)}
                     </div>
                   )}
                 </div>

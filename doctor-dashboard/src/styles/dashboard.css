@@ -574,6 +574,26 @@ body{
   color:#b91c1c;
 }
 
+.consent-status-requested{
+  background:#fff7ed;
+  color:#c2410c;
+}
+
+.consent-status-confirmed{
+  background:#dcfce7;
+  color:#15803d;
+}
+
+.consent-status-completed{
+  background:#dbeafe;
+  color:#1d4ed8;
+}
+
+.consent-status-cancelled{
+  background:#fee2e2;
+  color:#be123c;
+}
+
 .consent-status-rejected,
 .consent-status-revoked{
   background:#f1f5f9;

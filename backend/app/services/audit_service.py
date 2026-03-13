@@ -97,7 +97,9 @@ def get_access_logs(
         start_date = datetime.utcnow() - timedelta(days=days_back)
         query["timestamp"] = {"$gte": start_date}
     
-    return list(access_logs_collection.find(query).sort("timestamp", -1))
+    return list(
+        access_logs_collection.find(query, {"_id": 0}).sort("timestamp", -1)
+    )
 
 
 def get_access_summary(
@@ -110,6 +112,14 @@ def get_access_summary(
     """
     logs = get_access_logs(doctor_id, patient_id, days_back=days_back)
     
+    serialized_logs = []
+    for log in logs:
+        sanitized = {k: v for k, v in log.items() if k != "_id"}
+        timestamp = sanitized.get("timestamp")
+        if isinstance(timestamp, datetime):
+            sanitized["timestamp"] = timestamp.isoformat()
+        serialized_logs.append(sanitized)
+
     summary = {
         "total_accesses": len(logs),
         "successful_accesses": len([log for log in logs if log["status"] == "success"]),
@@ -117,7 +127,7 @@ def get_access_summary(
         "by_doctor": {},
         "by_patient": {},
         "by_action": {},
-        "logs": logs,
+        "logs": serialized_logs,
     }
     
     for log in logs:

@@ -19,6 +19,10 @@ from app.services.normalization_service import (
     normalize_unit,
 )
 from app.services.report_intelligence_service import infer_report_intelligence
+from app.services.trend_monitor_service import (
+    compute_three_month_metric_summary,
+    evaluate_three_month_increasing_trend,
+)
 
 router = APIRouter(prefix="/health", tags=["Health Records"])
 
@@ -53,6 +57,56 @@ SYNCED_VITAL_TYPES = {
     "calories burned",
     "calories_burned",
 }
+
+
+def _maybe_create_three_month_alert(patient_id: str, metric_name: str, now: datetime | None = None) -> dict | None:
+    now = now or datetime.utcnow()
+    summary = compute_three_month_metric_summary(
+        health_collection,
+        patient_id=patient_id,
+        metric_name=metric_name,
+        now=now,
+    )
+    evaluation = evaluate_three_month_increasing_trend(summary)
+    if not evaluation["alert"]:
+        return None
+
+    metric_key = (metric_name or "").strip().lower().replace("-", "_").replace(" ", "_")
+    existing_alert = db["alerts"].find_one(
+        {
+            "patient_id": patient_id,
+            "metric": metric_key,
+            "status": "active",
+            "created_at": {"$gte": now.replace(hour=0, minute=0, second=0, microsecond=0)},
+        }
+    )
+    if existing_alert:
+        return None
+
+    alert_data = {
+        "alert_id": str(uuid4()),
+        "patient_id": patient_id,
+        "metric": metric_key,
+        "monthly_averages": summary["bucket_averages"],
+        "monthly_counts": summary["bucket_counts"],
+        "message": (
+            "Your heart-rate trend has increased consistently over the last 3 months. "
+            "Please book a doctor appointment."
+            if metric_key in {"heart_rate", "pulse_rate"}
+            else f"{metric_name} shows a sustained increase over the last 3 months. Please book a doctor appointment."
+        ),
+        "created_at": datetime.utcnow(),
+        "status": "active",
+    }
+    db["alerts"].insert_one(alert_data)
+    db["notifications"].insert_one({
+        "notification_id": str(uuid4()),
+        "user_id": patient_id,
+        "message": alert_data["message"],
+        "created_at": datetime.utcnow(),
+        "read": False
+    })
+    return alert_data
 
 
 def _prepare_record_data(record: HealthRecord):
@@ -182,55 +236,11 @@ def add_health_record(
         },
     )
 
-    # after insertion, run simple trend check for each metric and generate alert/notification if needed
+    # after insertion, run 3-month trend check and generate alert/notification if needed
     if record.metrics:
-        from datetime import timedelta
-
         now = datetime.utcnow()
-        last_30 = now - timedelta(days=30)
-        prev_60 = now - timedelta(days=60)
-
         for metric in record.metrics:
-            name = metric.name
-            # fetch recent and older values
-            recent_vals = []
-            older_vals = []
-            for r in health_collection.find(
-                    {"patient_id": record.patient_id, "metrics.name": name}, {"_id": 0}):
-                ts = r.get("timestamp")
-                if isinstance(ts, str):
-                    ts = datetime.fromisoformat(ts)
-                if ts >= last_30:
-                    for m in r.get("metrics", []):
-                        if m["name"] == name:
-                            recent_vals.append(m["value"])
-                elif prev_60 <= ts < last_30:
-                    for m in r.get("metrics", []):
-                        if m["name"] == name:
-                            older_vals.append(m["value"])
-            if recent_vals and older_vals:
-                recent_avg = sum(recent_vals) / len(recent_vals)
-                older_avg = sum(older_vals) / len(older_vals)
-                if recent_avg > older_avg:
-                    # create alert as in alert_routes
-                    alert_data = {
-                        "alert_id": str(uuid4()),
-                        "patient_id": record.patient_id,
-                        "metric": name,
-                        "previous_avg": older_avg,
-                        "recent_avg": recent_avg,
-                        "message": f"{name} is increasing. Consider consulting a doctor.",
-                        "created_at": datetime.utcnow(),
-                        "status": "active"
-                    }
-                    db["alerts"].insert_one(alert_data)
-                    db["notifications"].insert_one({
-                        "notification_id": str(uuid4()),
-                        "user_id": record.patient_id,
-                        "message": alert_data["message"],
-                        "created_at": datetime.utcnow(),
-                        "read": False
-                    })
+            _maybe_create_three_month_alert(record.patient_id, metric.name, now=now)
 
     return {
         "message": "Health record added successfully",
@@ -289,6 +299,10 @@ def sync_wearables(
             "record_count": len(payload.records),
         },
     )
+
+    now = datetime.utcnow()
+    _maybe_create_three_month_alert(current_user["email"], "heart_rate", now=now)
+    _maybe_create_three_month_alert(current_user["email"], "pulse_rate", now=now)
 
     return {
         "message": "Wearable sync complete",

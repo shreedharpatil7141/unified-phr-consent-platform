@@ -8,6 +8,8 @@ class ConsentRequest(BaseModel):
     date_from: datetime
     date_to: datetime
     access_duration_minutes: int
+    access_from: datetime | None = None
+    access_to: datetime | None = None
 
 
 class ConsentResponse(BaseModel):
@@ -18,6 +20,8 @@ class ConsentResponse(BaseModel):
     date_from: datetime
     date_to: datetime
     access_duration_minutes: int
+    access_from: datetime | None = None
+    access_to: datetime | None = None
     status: str
     requested_at: datetime
     approved_at: datetime | None = None

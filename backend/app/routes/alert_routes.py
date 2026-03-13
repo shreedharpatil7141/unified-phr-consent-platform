@@ -4,6 +4,10 @@ from uuid import uuid4
 
 from app.config.database import db
 from app.core.dependencies import require_role
+from app.services.trend_monitor_service import (
+    compute_three_month_metric_summary,
+    evaluate_three_month_increasing_trend,
+)
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 
@@ -15,61 +19,54 @@ def generate_alert(
     metric_name: str,
     current_user: dict = Depends(require_role("patient"))
 ):
-    from datetime import timedelta
+    metric_key = (metric_name or "").strip().lower().replace("-", "_").replace(" ", "_")
+    summary = compute_three_month_metric_summary(
+        health_collection,
+        patient_id=current_user["email"],
+        metric_name=metric_key,
+    )
+    evaluation = evaluate_three_month_increasing_trend(summary)
+
+    if evaluation["trend"] == "insufficient_data":
+        return {
+            "message": "Not enough data to generate alert. 3 months of data is required.",
+            "trend_summary": summary,
+        }
+
+    if not evaluation["alert"]:
+        return {
+            "message": "No sustained 3-month increasing trend detected",
+            "trend_summary": summary,
+        }
 
     now = datetime.utcnow()
-    last_30 = now - timedelta(days=30)
-    prev_60 = now - timedelta(days=60)
-
-    recent = list(
-        health_collection.find(
-            {
-                "patient_id": current_user["email"],
-                "timestamp": {"$gte": last_30},
-                "metrics.name": metric_name
-            },
-            {"_id": 0}
-        )
+    existing_alert = alert_collection.find_one(
+        {
+            "patient_id": current_user["email"],
+            "metric": metric_key,
+            "status": "active",
+            "created_at": {"$gte": now.replace(hour=0, minute=0, second=0, microsecond=0)},
+        }
     )
-
-    older = list(
-        health_collection.find(
-            {
-                "patient_id": current_user["email"],
-                "timestamp": {"$gte": prev_60, "$lt": last_30},
-                "metrics.name": metric_name
-            },
-            {"_id": 0}
-        )
-    )
-
-    def extract(records):
-        values = []
-        for r in records:
-            for m in r.get("metrics", []):
-                if m["name"] == metric_name:
-                    values.append(m["value"])
-        return values
-
-    recent_vals = extract(recent)
-    older_vals = extract(older)
-
-    if not recent_vals or not older_vals:
-        return {"message": "Not enough data to generate alert"}
-
-    recent_avg = sum(recent_vals) / len(recent_vals)
-    older_avg = sum(older_vals) / len(older_vals)
-
-    if recent_avg <= older_avg:
-        return {"message": "No concerning trend detected"}
+    if existing_alert:
+        return {
+            "message": "Alert already generated today for this metric",
+            "alert_id": existing_alert.get("alert_id"),
+            "trend_summary": summary,
+        }
 
     alert_data = {
         "alert_id": str(uuid4()),
         "patient_id": current_user["email"],
-        "metric": metric_name,
-        "previous_avg": older_avg,
-        "recent_avg": recent_avg,
-        "message": f"{metric_name} is increasing. Consider consulting a doctor.",
+        "metric": metric_key,
+        "monthly_averages": summary["bucket_averages"],
+        "monthly_counts": summary["bucket_counts"],
+        "message": (
+            "Your heart-rate trend has increased consistently over the last 3 months. "
+            "Please book a doctor appointment."
+            if metric_key in {"heart_rate", "pulse_rate"}
+            else f"{metric_name} shows a sustained increase over the last 3 months. Please book a doctor appointment."
+        ),
         "created_at": datetime.utcnow(),
         "status": "active"
     }

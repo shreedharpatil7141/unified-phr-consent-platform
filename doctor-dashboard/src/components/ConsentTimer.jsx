@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toTimestamp } from "../utils/dateTime";
 
 const buildCountdownState = (expiresAt) => {
   if (!expiresAt) {
@@ -8,7 +9,7 @@ const buildCountdownState = (expiresAt) => {
     };
   }
 
-  const diff = new Date(expiresAt) - new Date();
+  const diff = toTimestamp(expiresAt) - Date.now();
   if (diff <= 0) {
     return {
       label: "Expired",

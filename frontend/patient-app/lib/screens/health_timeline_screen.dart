@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/health_record.dart';
 import '../services/api_service.dart';
 import '../services/health_record_repository.dart';
+import '../utils/server_time.dart';
 
 class HealthTimelineScreen extends StatefulWidget {
   const HealthTimelineScreen({super.key});
@@ -49,7 +50,7 @@ class _HealthTimelineScreenState extends State<HealthTimelineScreen> {
           _TimelineEvent(
             title: message,
             subtitle: "System activity",
-            timestamp: DateTime.tryParse(item["created_at"]?.toString() ?? "") ?? DateTime.now(),
+            timestamp: parseServerTime(item["created_at"]) ?? DateTime.now(),
             icon: message.toLowerCase().contains("alert") ? Icons.warning_amber_rounded : Icons.verified_user,
             color: message.toLowerCase().contains("alert")
                 ? const Color(0xFFEA580C)

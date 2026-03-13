@@ -1,5 +1,7 @@
+import { formatServerDateTime, parseServerDate } from "../utils/dateTime";
+
 const formatTime = (timestamp) =>
-  new Date(timestamp).toLocaleString([], {
+  formatServerDateTime(timestamp, {
     day: "numeric",
     month: "short",
     hour: "numeric",
@@ -18,7 +20,7 @@ const buildGroupedTimeline = (records = []) => {
 
   if (vitals.length) {
     const latestVital = [...vitals].sort(
-      (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+      (a, b) => parseServerDate(b.timestamp) - parseServerDate(a.timestamp)
     )[0];
     const types = [...new Set(vitals.map((record) => record.record_type || record.type).filter(Boolean))];
 
@@ -33,7 +35,7 @@ const buildGroupedTimeline = (records = []) => {
 
   if (documents.length) {
     const latestDocument = [...documents].sort(
-      (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+      (a, b) => parseServerDate(b.timestamp) - parseServerDate(a.timestamp)
     )[0];
     const domains = [...new Set(documents.map((record) => record.domain).filter(Boolean))];
 
@@ -46,7 +48,9 @@ const buildGroupedTimeline = (records = []) => {
     });
   }
 
-  return grouped.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  return grouped.sort(
+    (a, b) => parseServerDate(b.timestamp) - parseServerDate(a.timestamp)
+  );
 };
 
 const HealthTimeline = ({ records }) => {

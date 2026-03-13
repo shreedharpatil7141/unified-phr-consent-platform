@@ -1,5 +1,6 @@
 import '../models/health_record.dart';
 import '../services/api_service.dart';
+import '../utils/server_time.dart';
 
 class HealthRecordRepository {
 
@@ -8,6 +9,36 @@ class HealthRecordRepository {
 
   static String _normalizeType(String type) {
     return type.toLowerCase().replaceAll(" ", "_");
+  }
+
+  static bool _isLocalWatchSource(String source) {
+    final normalized = source.toLowerCase();
+    return normalized == "smartwatch";
+  }
+
+  static List<HealthRecord> _mergedDeduplicatedRecords() {
+    final merged = [..._records, ..._watchRecords];
+    final byKey = <String, HealthRecord>{};
+
+    for (final record in merged) {
+      final value = double.tryParse(record.value);
+      final normalizedValue = value?.toStringAsFixed(3) ?? record.value;
+      final key =
+          "${_normalizeType(record.type)}|${record.timestamp.toIso8601String()}|$normalizedValue";
+
+      final existing = byKey[key];
+      if (existing == null) {
+        byKey[key] = record;
+        continue;
+      }
+
+      // Prefer backend copy over local watch copy when the same sample exists in both.
+      if (_isLocalWatchSource(existing.source) && !_isLocalWatchSource(record.source)) {
+        byKey[key] = record;
+      }
+    }
+
+    return byKey.values.toList();
   }
 
   /// Load records from backend
@@ -30,7 +61,7 @@ class HealthRecordRepository {
             value: r["value"]?.toString() ?? "",
             unit: r["unit"] ?? "",
             source: r["normalized_source"] ?? r["source"] ?? "server",
-            timestamp: DateTime.tryParse(r["timestamp"] ?? "") ?? DateTime.now(),
+            timestamp: parseServerTime(r["timestamp"]) ?? DateTime.now(),
             filePath: ApiService.resolveFileUrl(r["file_url"]),
             recordName: r["record_name"],
             doctorName: r["doctor"],
@@ -66,16 +97,16 @@ class HealthRecordRepository {
 
   /// Get all records
   static List<HealthRecord> getAllRecords() {
-    return [..._records, ..._watchRecords];
+    return _mergedDeduplicatedRecords();
   }
 
   /// Filter by domain
   static List<HealthRecord> getRecordsByDomain(String domain) {
 
-    return _records
-        .followedBy(_watchRecords)
+    return _mergedDeduplicatedRecords()
         .where((r) => r.domain == domain)
-        .toList();
+        .toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
   }
 
@@ -85,10 +116,11 @@ class HealthRecordRepository {
       int year
   ){
 
-    return _records.followedBy(_watchRecords).where((r) =>
+    return _mergedDeduplicatedRecords().where((r) =>
         r.domain == domain &&
         r.timestamp.year == year
-    ).toList();
+    ).toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
   }
 
@@ -99,10 +131,11 @@ class HealthRecordRepository {
   ) {
     final normalizedType = _normalizeType(type);
 
-    return _records.followedBy(_watchRecords).where((r) =>
+    return _mergedDeduplicatedRecords().where((r) =>
         _normalizeType(r.type) == normalizedType &&
         r.timestamp.isAfter(startDate)
-    ).toList();
+    ).toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
   }
 

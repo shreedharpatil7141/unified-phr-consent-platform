@@ -13,6 +13,8 @@ consent_collection = db["consents"]
 
 
 CATEGORY_ALIASES = {
+    "documents": "documents",
+    "document": "documents",
     "lab_reports": "lab_report",
     "lab_report": "lab_report",
     "prescriptions": "prescription",
@@ -21,6 +23,17 @@ CATEGORY_ALIASES = {
     "vaccination": "vaccination",
     "cardiology": "cardiac",
     "cardiac": "cardiac",
+    "metabolic": "metabolic",
+    "renal": "renal",
+    "hepatic": "hepatic",
+    "hemotology": "hematology",
+    "hematology": "hematology",
+    "respiratory": "respiratory",
+    "general_wellness": "wellness",
+    "general wellness": "wellness",
+    "wellness": "wellness",
+    "radiology": "radiology",
+    "vitals": "vitals",
 }
 
 
@@ -72,6 +85,8 @@ def request_consent(
         "date_from": consent.date_from,
         "date_to": consent.date_to,
         "access_duration_minutes": consent.access_duration_minutes,
+        "access_from": consent.access_from,
+        "access_to": consent.access_to,
         "status": "pending",
         "requested_at": datetime.utcnow(),
         "approved_at": None,
@@ -90,6 +105,8 @@ def request_consent(
             "date_from": consent.date_from.isoformat(),
             "date_to": consent.date_to.isoformat(),
             "access_duration_minutes": consent.access_duration_minutes,
+            "access_from": consent.access_from.isoformat() if consent.access_from else None,
+            "access_to": consent.access_to.isoformat() if consent.access_to else None,
         },
     )
 
@@ -124,9 +141,18 @@ def approve_consent(
         raise HTTPException(status_code=400, detail="Consent already processed")
 
     approved_at = datetime.utcnow()
-    expires_at = approved_at + timedelta(
-        minutes=consent["access_duration_minutes"]
+    access_from = consent.get("access_from") or approved_at
+    access_to = consent.get("access_to") or (
+        approved_at + timedelta(minutes=consent["access_duration_minutes"])
     )
+
+    # Prevent timezone/input drift from creating a future-start consent after approval.
+    if access_from > approved_at:
+        access_from = approved_at
+        access_to = approved_at + timedelta(minutes=consent["access_duration_minutes"])
+
+    if access_to <= access_from:
+        raise HTTPException(status_code=400, detail="Invalid access window")
 
     consent_collection.update_one(
         {"consent_id": consent_id},
@@ -134,7 +160,9 @@ def approve_consent(
             "$set": {
                 "status": "approved",
                 "approved_at": approved_at,
-                "expires_at": expires_at
+                "access_from": access_from,
+                "access_to": access_to,
+                "expires_at": access_to
             }
         }
     )
@@ -147,7 +175,9 @@ def approve_consent(
         metadata={
             "doctor_id": consent["doctor_id"],
             "approved_at": approved_at.isoformat(),
-            "expires_at": expires_at.isoformat(),
+            "access_from": access_from.isoformat(),
+            "access_to": access_to.isoformat(),
+            "expires_at": access_to.isoformat(),
         },
     )
 
@@ -163,7 +193,9 @@ def approve_consent(
     return {
         "message": "Consent approved",
         "consent_id": consent_id,
-        "expires_at": expires_at,
+        "access_from": access_from,
+        "access_to": access_to,
+        "expires_at": access_to,
         "status": "approved"
     }
 @router.post("/{consent_id}/reject")

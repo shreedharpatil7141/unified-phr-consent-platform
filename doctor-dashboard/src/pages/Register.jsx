@@ -7,14 +7,19 @@ const Register = () => {
 
   const navigate = useNavigate();
 
+  const [name,setName] = useState("");
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
 
   const handleRegister = async () => {
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      alert("Name, email, and password are required");
+      return;
+    }
 
     try{
 
-      await registerUser(email,password,"doctor");
+      await registerUser(name.trim(),email.trim(),password,"doctor");
 
       alert("Account created");
 
@@ -22,7 +27,7 @@ const Register = () => {
 
     }catch(err){
 
-      alert("Registration failed");
+      alert(err?.response?.data?.detail || "Registration failed");
 
     }
 
@@ -35,6 +40,12 @@ const Register = () => {
       <div className="auth-card">
 
         <h2>Doctor Registration</h2>
+
+        <input
+          placeholder="Full name"
+          value={name}
+          onChange={(e)=>setName(e.target.value)}
+        />
 
         <input
           placeholder="Email"

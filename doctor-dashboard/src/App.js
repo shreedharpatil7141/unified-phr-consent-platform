@@ -7,6 +7,8 @@ import PatientDashboard from "./pages/PatientDashboard";
 import Patients from "./pages/Patients";
 import ConsentRequests from "./pages/ConsentRequests";
 import Notifications from "./pages/Notifications";
+import AuditLogs from "./pages/AuditLogs";
+import Appointments from "./pages/Appointments";
 
 /* NEW AUTH PAGES */
 import Login from "./pages/Login";
@@ -72,6 +74,24 @@ function App() {
           element={
             <Layout>
               <Notifications />
+            </Layout>
+          }
+        />
+
+        <Route
+          path="/audit-logs"
+          element={
+            <Layout>
+              <AuditLogs />
+            </Layout>
+          }
+        />
+
+        <Route
+          path="/appointments"
+          element={
+            <Layout>
+              <Appointments />
             </Layout>
           }
         />

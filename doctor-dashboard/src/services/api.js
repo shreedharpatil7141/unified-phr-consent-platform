@@ -33,4 +33,8 @@ export const getDashboardData = (consentId) => {
   return API.get(`/data/view/${consentId}`);
 };
 
+export const getConsentAiInsight = (consentId) => {
+  return API.get(`/ai/doctor-consent-insight/${consentId}`);
+};
+
 export default API;

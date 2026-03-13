@@ -4,7 +4,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../main.dart';
 import '../services/api_service.dart';
 import 'family_profiles_screen.dart';
+import 'appointments_screen.dart';
 import 'medical_basics_screen.dart';
+import 'patient_audit_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -186,12 +188,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: ListTile(
               leading: const Icon(Icons.family_restroom, color: Color(0xFF2563EB)),
               title: const Text("Manage Family Profiles"),
-              subtitle: const Text("Store family members for future caregiving workflows"),
+              subtitle: const Text("Invite by email, accept requests, and view linked family overviews"),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const FamilyProfilesScreen()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.calendar_month_outlined, color: Color(0xFF0F766E)),
+              title: const Text("Doctor Appointments"),
+              subtitle: const Text("Request appointments and track confirmations"),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AppointmentsScreen()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.policy_outlined, color: Color(0xFF0F766E)),
+              title: const Text("Access Audit Logs"),
+              subtitle: const Text("See which doctors accessed your shared records"),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PatientAuditScreen()),
                 );
               },
             ),

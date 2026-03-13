@@ -102,6 +102,7 @@ class _LabReportsPageState extends State<LabReportsPage> {
                 filterChip("metabolic","Metabolic"),
                 filterChip("renal","Renal"),
                 filterChip("hematology","Hematology"),
+                filterChip("radiology","Radiology"),
                 filterChip("respiratory","Respiratory"),
 
               ],

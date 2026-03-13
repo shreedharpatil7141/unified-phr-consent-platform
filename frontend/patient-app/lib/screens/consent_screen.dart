@@ -135,7 +135,7 @@ class _ConsentScreenState extends State<ConsentScreen> with WidgetsBindingObserv
   }
 }
 
-class _ConsentList extends StatelessWidget {
+class _ConsentList extends StatefulWidget {
   final List<Consent> consents;
   final String emptyText;
   final bool showActions;
@@ -150,29 +150,76 @@ class _ConsentList extends StatelessWidget {
     this.onReject,
   });
 
+  @override
+  State<_ConsentList> createState() => _ConsentListState();
+}
+
+class _ConsentListState extends State<_ConsentList> {
+  Timer? _countdownTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startOrStopTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ConsentList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _startOrStopTimer();
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startOrStopTimer() {
+    final hasActiveCountdown = widget.consents.any(
+      (consent) => consent.status == "approved" && consent.expiresAt != null,
+    );
+
+    if (!hasActiveCountdown) {
+      _countdownTimer?.cancel();
+      _countdownTimer = null;
+      return;
+    }
+
+    if (_countdownTimer != null) {
+      return;
+    }
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
+
   String _countdown(DateTime? expiresAt) {
     if (expiresAt == null) return "No timer";
     final diff = expiresAt.difference(DateTime.now());
     if (diff.isNegative) return "Expired";
     final hours = diff.inHours;
     final minutes = diff.inMinutes.remainder(60);
-    return "${hours}h ${minutes}m left";
+    final seconds = diff.inSeconds.remainder(60);
+    return "${hours}h ${minutes}m ${seconds}s left";
   }
 
   @override
   Widget build(BuildContext context) {
-    if (consents.isEmpty) {
-      return Center(child: Text(emptyText));
+    if (widget.consents.isEmpty) {
+      return Center(child: Text(widget.emptyText));
     }
 
     return RefreshIndicator(
       onRefresh: () async => AppRefreshNotifier.notify(),
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
-        itemCount: consents.length,
+        itemCount: widget.consents.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
-          final consent = consents[index];
+          final consent = widget.consents[index];
           return Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -208,20 +255,20 @@ class _ConsentList extends StatelessWidget {
                       _MiniInfo(label: "Remaining", value: _countdown(consent.expiresAt)),
                   ],
                 ),
-                if (showActions) ...[
+                if (widget.showActions) ...[
                   const SizedBox(height: 14),
                   Row(
                     children: [
                       Expanded(
                         child: FilledButton(
-                          onPressed: () => onApprove?.call(consent),
+                          onPressed: () => widget.onApprove?.call(consent),
                           child: const Text("Approve"),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => onReject?.call(consent),
+                          onPressed: () => widget.onReject?.call(consent),
                           child: const Text("Reject"),
                         ),
                       ),

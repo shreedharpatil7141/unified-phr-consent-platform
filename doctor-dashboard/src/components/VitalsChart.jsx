@@ -9,6 +9,7 @@ import {
   Legend,
   Filler,
 } from "chart.js";
+import { parseServerDate } from "../utils/dateTime";
 
 ChartJS.register(
   CategoryScale,
@@ -155,7 +156,7 @@ const VitalsChart = ({ records, emptyMessage }) => {
 
   const metricRecords = extracted
     .filter((entry) => entry.metric.label === selectedMetric.label)
-    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    .sort((a, b) => parseServerDate(a.timestamp) - parseServerDate(b.timestamp));
 
   const values = metricRecords.map((entry) => entry.value);
   const latestValue = values[values.length - 1];
@@ -163,8 +164,8 @@ const VitalsChart = ({ records, emptyMessage }) => {
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const scale = getMetricRange(selectedMetric, values);
-  const latestTimestamp = new Date(metricRecords[metricRecords.length - 1].timestamp);
-  const firstTimestamp = new Date(metricRecords[0].timestamp);
+  const latestTimestamp = parseServerDate(metricRecords[metricRecords.length - 1].timestamp);
+  const firstTimestamp = parseServerDate(metricRecords[0].timestamp);
   const rangeLabel =
     metricRecords.length > 1
       ? `${firstTimestamp.toLocaleDateString([], {
@@ -181,7 +182,7 @@ const VitalsChart = ({ records, emptyMessage }) => {
         });
 
   const data = {
-    labels: metricRecords.map((entry) => formatAxisTime(new Date(entry.timestamp))),
+    labels: metricRecords.map((entry) => formatAxisTime(parseServerDate(entry.timestamp))),
     datasets: [
       {
         label: `${selectedMetric.label} (${selectedMetric.unit})`,
@@ -221,7 +222,7 @@ const VitalsChart = ({ records, emptyMessage }) => {
           title: (tooltipItems) => {
             const item = tooltipItems[0];
             const point = metricRecords[item.dataIndex];
-            return formatTooltipTime(new Date(point.timestamp));
+            return formatTooltipTime(parseServerDate(point.timestamp));
           },
           label: (context) => formatValue(context.parsed.y, selectedMetric.unit),
         },

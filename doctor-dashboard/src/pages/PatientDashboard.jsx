@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Activity, HeartPulse, Database, AlertTriangle } from "lucide-react";
 
-import { getDashboardData } from "../services/api";
+import { getDashboardData, getConsentAiInsight } from "../services/api";
 import { API_BASE_URL } from "../services/config";
 import PatientCard from "../components/PatientCard";
 import HealthTimeline from "../components/HealthTimeline";
@@ -11,6 +11,7 @@ import AlertsPanel from "../components/AlertsPanel";
 import RiskScore from "../components/RiskScore";
 import ConsentTimer from "../components/ConsentTimer";
 import "../styles/dashboard.css";
+import { formatServerDateTime, toTimestamp } from "../utils/dateTime";
 
 const StatCard = ({ title, value, icon }) => (
   <div className="card stat-card">
@@ -24,7 +25,11 @@ const StatCard = ({ title, value, icon }) => (
 
 const PatientDashboard = () => {
   const [data, setData] = useState(null);
+  const [aiInsight, setAiInsight] = useState(null);
+  const [aiLoading, setAiLoading] = useState(true);
+  const [nowTs, setNowTs] = useState(Date.now());
   const { consentId } = useParams();
+  const [copyState, setCopyState] = useState("");
 
   useEffect(() => {
     if (!consentId) return;
@@ -35,17 +40,39 @@ const PatientDashboard = () => {
       return;
     }
 
-    getDashboardData(consentId)
-      .then((res) => {
-        setData(res?.data || { records: [], message: "No data available" });
-      })
-      .catch((err) => {
-        console.error("Dashboard load error:", err);
-        setData({ records: [], message: "Failed to load patient data" });
+    Promise.allSettled([getDashboardData(consentId), getConsentAiInsight(consentId)])
+      .then((results) => {
+        const dashboardResult = results[0];
+        const aiResult = results[1];
+
+        if (dashboardResult.status === "fulfilled") {
+          setData(dashboardResult.value?.data || { records: [], message: "No data available" });
+        } else {
+          console.error("Dashboard load error:", dashboardResult.reason);
+          const detail =
+            dashboardResult.reason?.response?.data?.detail ||
+            dashboardResult.reason?.message ||
+            "Failed to load patient data";
+          setData({ records: [], message: detail });
+        }
+
+        if (aiResult.status === "fulfilled") {
+          setAiInsight(aiResult.value?.data || null);
+        } else {
+          console.error("AI insight load error:", aiResult.reason);
+          setAiInsight(null);
+        }
+        setAiLoading(false);
       });
   }, [consentId]);
 
+  useEffect(() => {
+    const ticker = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(ticker);
+  }, []);
+
   const dashboardData = data || { records: [] };
+  const accessError = String(dashboardData.message || "").toLowerCase().includes("access window not started");
   const records = dashboardData.records || [];
   const patientEmail = dashboardData.patient_id;
   const patientProfile = dashboardData.patient_profile || {};
@@ -60,13 +87,56 @@ const PatientDashboard = () => {
     return count;
   }, [vitals.length, documents.length]);
 
+  const patientJson = useMemo(() => {
+    return {
+      consent_id: consentId,
+      patient_email: patientEmail || "",
+      patient_profile: patientProfile || {},
+      shared_scope: allowedCategories,
+      consent_approved_at: dashboardData.consent_approved_at || null,
+      consent_expires_at: dashboardData.consent_expires_at || null,
+      records: records,
+      insight_summary: dashboardData.insight_summary || "",
+    };
+  }, [allowedCategories, consentId, dashboardData, patientEmail, patientProfile, records]);
+
+  const patientJsonText = useMemo(
+    () => JSON.stringify(patientJson, null, 2),
+    [patientJson]
+  );
+
+  const handleCopyJson = async () => {
+    try {
+      await navigator.clipboard.writeText(patientJsonText);
+      setCopyState("Copied");
+      setTimeout(() => setCopyState(""), 1500);
+    } catch (error) {
+      setCopyState("Copy failed");
+      setTimeout(() => setCopyState(""), 1500);
+    }
+  };
+
+  const handleDownloadJson = () => {
+    const blob = new Blob([patientJsonText], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${(patientEmail || "patient").replace(/[^a-z0-9@._-]/gi, "_")}_consent_${consentId}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
+
   const consentScope = allowedCategories.join(", ") || "documents";
   const consentApprovedAt = dashboardData.consent_approved_at
-    ? new Date(dashboardData.consent_approved_at).toLocaleString()
+    ? formatServerDateTime(dashboardData.consent_approved_at)
     : "Pending approval timestamp";
   const consentExpiresAt = dashboardData.consent_expires_at
-    ? new Date(dashboardData.consent_expires_at).toLocaleString()
+    ? formatServerDateTime(dashboardData.consent_expires_at)
     : "Not available";
+  const isConsentExpired = !!dashboardData.consent_expires_at &&
+    toTimestamp(dashboardData.consent_expires_at) <= nowTs;
 
   const vitalsEmptyMessage = allowedCategories.some((category) =>
     ["vitals", "cardiology", "cardiac"].includes((category || "").toLowerCase())
@@ -92,6 +162,24 @@ const PatientDashboard = () => {
 
   if (!data) {
     return <div className="dashboard-container">Loading Patient Data...</div>;
+  }
+
+  if (isConsentExpired) {
+    return (
+      <div className="dashboard-container">
+        <h1 className="dashboard-title">Patient Health Dashboard</h1>
+        <div className="card section-card" style={{ marginTop: "20px" }}>
+          <div className="section-eyebrow">Consent State</div>
+          <h3 className="section-title">Access Expired</h3>
+          <p className="section-copy">
+            This consent expired at {consentExpiresAt}. Patient data is no longer visible.
+          </p>
+          <div style={{ marginTop: "14px" }}>
+            <ConsentTimer expiresAt={dashboardData.consent_expires_at} />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -137,9 +225,15 @@ const PatientDashboard = () => {
       <div className="card section-card" style={{ marginTop: "20px" }}>
         <div className="section-eyebrow">Clinical Snapshot</div>
         <h3 className="section-title">Clinical Summary</h3>
-        <p className="section-copy">
-          {dashboardData.insight_summary || "No shared summary available for this consent."}
-        </p>
+        {accessError ? (
+          <p className="section-copy">
+            {dashboardData.message}. Data will become visible automatically once the access window starts.
+          </p>
+        ) : (
+          <p className="section-copy">
+            {dashboardData.insight_summary || "No shared summary available for this consent."}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-chart" style={{ marginTop: "30px" }}>
@@ -150,8 +244,8 @@ const PatientDashboard = () => {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <AlertsPanel records={records} />
-          <RiskScore records={records} />
+          <AlertsPanel aiInsight={aiInsight} loading={aiLoading} />
+          <RiskScore aiInsight={aiInsight} loading={aiLoading} />
         </div>
       </div>
 
@@ -182,6 +276,35 @@ const PatientDashboard = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="card section-card" style={{ marginTop: "30px" }}>
+        <div className="section-eyebrow">Structured Data</div>
+        <h3 className="section-title">Patient JSON Snapshot</h3>
+        <p className="section-copy">Use this for secure handoff, debugging, or case attachments.</p>
+        <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
+          <button className="secondary-button" onClick={handleCopyJson}>
+            Copy JSON
+          </button>
+          <button className="primary-button" onClick={handleDownloadJson}>
+            Download JSON
+          </button>
+          {copyState && <span className="section-copy">{copyState}</span>}
+        </div>
+        <pre
+          style={{
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: "12px",
+            padding: "12px",
+            maxHeight: "320px",
+            overflow: "auto",
+            fontSize: "12px",
+            margin: 0,
+          }}
+        >
+          {patientJsonText}
+        </pre>
       </div>
 
       <div className="card section-card" style={{ marginTop: "30px" }}>

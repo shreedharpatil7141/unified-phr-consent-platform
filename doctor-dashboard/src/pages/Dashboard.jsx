@@ -5,6 +5,7 @@ import { Activity, Database, HeartPulse, AlertTriangle } from "lucide-react";
 import "../styles/dashboard.css";
 import API from "../services/api";
 import ConsentTimer from "../components/ConsentTimer";
+import { formatServerDateTime, toTimestamp } from "../utils/dateTime";
 
 const StatCard = ({ title, value, icon }) => (
   <div className="card stat-card">
@@ -17,40 +18,61 @@ const StatCard = ({ title, value, icon }) => (
 );
 
 const formatDateTime = (value) =>
-  value
-    ? new Date(value).toLocaleString([], {
-        day: "numeric",
-        month: "short",
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : "Unknown";
+  formatServerDateTime(value, {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 
 const Dashboard = () => {
   const [consents, setConsents] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [nowTs, setNowTs] = useState(Date.now());
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const loadDashboardData = () => {
     API.get("/consent/sent")
       .then((res) => setConsents(res.data || []))
       .catch((err) => console.error("Consent load error:", err));
 
     API.get("/notifications/my")
       .then((res) => setNotifications(res.data || []))
-      .catch((err) => console.error("Notification load error:", err));
+      .catch((err) => console.error("Notification load error:", err))
+      .finally(() => setLastSyncedAt(Date.now()));
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+
+    const poller = setInterval(() => {
+      loadDashboardData();
+    }, 15000);
+
+    return () => clearInterval(poller);
+  }, []);
+
+  useEffect(() => {
+    const ticker = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(ticker);
   }, []);
 
   const activeConsents = useMemo(
     () =>
       consents
-        .filter((consent) => consent.status === "approved" && consent.expires_at)
+        .filter(
+          (consent) =>
+            consent.status === "approved" &&
+            consent.expires_at &&
+            toTimestamp(consent.expires_at) > nowTs
+        )
         .sort(
           (a, b) =>
-            new Date(a.expires_at || 0) -
-            new Date(b.expires_at || 0)
+            toTimestamp(a.expires_at || 0) -
+            toTimestamp(b.expires_at || 0)
         ),
-    [consents]
+    [consents, nowTs]
   );
   const connectedPatients = useMemo(
     () => new Set(activeConsents.map((consent) => consent.patient_id)).size,
@@ -62,7 +84,16 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-container">
-      <h1 className="dashboard-title">Doctor Dashboard</h1>
+      <div className="page-header-row">
+        <h1 className="dashboard-title">Doctor Dashboard</h1>
+        <div className="debug-pill">
+          <span className="debug-label">Current Time</span>
+          <span className="debug-value">{formatDateTime(nowTs)}</span>
+          <span className="timeline-time">
+            Last sync {lastSyncedAt ? formatDateTime(lastSyncedAt) : "..." }
+          </span>
+        </div>
+      </div>
 
       <div className="grid grid-4">
         <StatCard title="Patients Connected" value={connectedPatients} icon={<Activity size={20} />} />

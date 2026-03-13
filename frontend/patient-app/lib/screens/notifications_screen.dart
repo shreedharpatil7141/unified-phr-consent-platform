@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/app_refresh_notifier.dart';
+import '../utils/server_time.dart';
 
 class NotificationItem {
   final String id;
   final String message;
-  final String createdAt;
+  final DateTime? createdAt;
   bool read;
 
   NotificationItem({
@@ -40,7 +41,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return NotificationItem(
           id: n['notification_id'],
           message: n['message'],
-          createdAt: n['created_at'],
+          createdAt: parseServerTime(n['created_at']),
           read: n['read'] ?? false,
         );
       }).toList();
@@ -96,7 +97,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         color: n.read ? Colors.grey : Colors.blue,
                       ),
                       title: Text(n.message),
-                      subtitle: Text(n.createdAt),
+                      subtitle: Text(
+                        n.createdAt != null
+                            ? "${n.createdAt!.day}/${n.createdAt!.month}/${n.createdAt!.year} ${n.createdAt!.hour.toString().padLeft(2, '0')}:${n.createdAt!.minute.toString().padLeft(2, '0')}"
+                            : "Unknown time",
+                      ),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete_outline),
                         onPressed: () => deleteNotification(n),
