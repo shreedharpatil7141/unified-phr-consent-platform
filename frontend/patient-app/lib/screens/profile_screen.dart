@@ -5,6 +5,7 @@ import '../main.dart';
 import '../services/api_service.dart';
 import 'family_profiles_screen.dart';
 import 'appointments_screen.dart';
+import 'manual_health_data_screen.dart';
 import 'medical_basics_screen.dart';
 import 'patient_audit_screen.dart';
 
@@ -158,6 +159,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   MaterialPageRoute(builder: (_) => const MedicalBasicsScreen()),
                 );
                 await loadProfile();
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.monitor_heart_outlined, color: Color(0xFF0F766E)),
+              title: const Text("Manual Health Data"),
+              subtitle: const Text("View latest manual entries with increase/decrease status"),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ManualHealthDataScreen()),
+                );
               },
             ),
           ),

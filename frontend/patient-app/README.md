@@ -1,17 +1,38 @@
-# health1
+# Patient App (Flutter)
 
-Personal Health Record Flutter App
+Flutter app for patient-facing Unified PHR flows.
 
-## Getting Started
+## Key Modules
 
-This project is a starting point for a Flutter application.
+- Home dashboard with vitals overview
+- Health Connect / wearable sync to backend
+- Health timeline and vitals history graphs
+- Health locker:
+  - Lab reports
+  - Prescriptions
+  - Vaccines
+- Consent request handling (approve/reject/revoke)
+- Alerts and notifications
+- Appointments (request/cancel/delete closed)
+- Family profile link management
+- Patient audit visibility (data access + appointment activity)
 
-A few resources to get you started if this is your first Flutter project:
+## Run Locally
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter pub get
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Backend URL
+
+Configured in:
+
+- `lib/services/api_service.dart` via `API_BASE_URL` compile-time variable
+- default fallback points to local backend
+
+Example:
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://192.168.0.102:8000
+```

@@ -81,7 +81,7 @@ class _HealthInputScreenState extends State<HealthInputScreen> {
 
                 try {
                   // Sync to backend first
-                  await ApiService.addHealthRecord(
+                  final response = await ApiService.addHealthRecord(
                     patientId: email,
                     source: "manual",
                     category: mapping["category"]!,
@@ -110,10 +110,25 @@ class _HealthInputScreenState extends State<HealthInputScreen> {
                   await HealthRecordRepository.loadFromServer();
 
                   if (!mounted) return;
-                  
+
+                  final direction = (response["change_direction"] ?? "").toString();
+                  final isOverwrite = response["overwritten"] == true;
+                  String feedback = "Record saved successfully";
+                  if (isOverwrite) {
+                    if (direction == "increased") {
+                      feedback = "Record updated: increased vs last upload";
+                    } else if (direction == "decreased") {
+                      feedback = "Record updated: decreased vs last upload";
+                    } else if (direction == "unchanged") {
+                      feedback = "Record updated: unchanged vs last upload";
+                    } else {
+                      feedback = "Record updated";
+                    }
+                  }
+
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Record Saved Successfully"),
+                    SnackBar(
+                      content: Text(feedback),
                       duration: Duration(seconds: 2),
                     ),
                   );

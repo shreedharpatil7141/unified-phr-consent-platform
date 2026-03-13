@@ -143,6 +143,26 @@ def _find_duplicate_record(record_data: dict):
     return health_collection.find_one(duplicate_query, {"_id": 0, "record_id": 1})
 
 
+def _to_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _get_change_direction(previous_value, current_value):
+    prev = _to_float(previous_value)
+    curr = _to_float(current_value)
+    if prev is None or curr is None:
+        return {"direction": "unknown", "delta": None}
+    delta = curr - prev
+    if delta > 0:
+        return {"direction": "increased", "delta": delta}
+    if delta < 0:
+        return {"direction": "decreased", "delta": delta}
+    return {"direction": "unchanged", "delta": 0.0}
+
+
 def _build_vitals_sync_summary(patient_id: str):
     records = list(
         health_collection.find(
@@ -217,12 +237,61 @@ def add_health_record(
         return {
             "message": "Health record already exists",
             "record_id": existing["record_id"],
+            "change_direction": "unchanged",
+            "delta": 0.0,
+            "overwritten": False,
         }
 
-    record_data["record_id"] = str(uuid4())
-    record_data["created_at"] = datetime.utcnow()
+    overwrite_result = None
+    if record_data.get("source") == "manual" and record_data.get("category") == "vitals":
+        previous_manual = health_collection.find_one(
+            {
+                "patient_id": record_data["patient_id"],
+                "source": "manual",
+                "category": "vitals",
+                "record_type": record_data.get("record_type"),
+            },
+            {"_id": 0},
+            sort=[("timestamp", -1)],
+        )
+        if previous_manual:
+            change = _get_change_direction(previous_manual.get("value"), record_data.get("value"))
+            health_collection.update_one(
+                {"record_id": previous_manual["record_id"]},
+                {
+                    "$set": {
+                        "timestamp": record_data["timestamp"],
+                        "value": record_data.get("value"),
+                        "previous_value": previous_manual.get("value"),
+                        "change_direction": change["direction"],
+                        "delta": change["delta"],
+                        "unit": record_data.get("unit"),
+                        "domain": record_data.get("domain"),
+                        "provider": record_data.get("provider"),
+                        "notes": record_data.get("notes"),
+                        "metrics": record_data.get("metrics"),
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+            )
+            record_data["record_id"] = previous_manual["record_id"]
+            overwrite_result = {
+                "message": "Health record updated",
+                "record_id": previous_manual["record_id"],
+                "change_direction": change["direction"],
+                "delta": change["delta"],
+                "previous_value": previous_manual.get("value"),
+                "current_value": record_data.get("value"),
+                "overwritten": True,
+            }
 
-    health_collection.insert_one(record_data)
+    if not overwrite_result:
+        record_data["record_id"] = str(uuid4())
+        record_data["created_at"] = datetime.utcnow()
+        record_data["previous_value"] = None
+        record_data["change_direction"] = "new"
+        record_data["delta"] = None
+        health_collection.insert_one(record_data)
     log_audit_event(
         event_type="health_record_added",
         actor_email=current_user["email"],
@@ -242,9 +311,15 @@ def add_health_record(
         for metric in record.metrics:
             _maybe_create_three_month_alert(record.patient_id, metric.name, now=now)
 
+    if overwrite_result:
+        return overwrite_result
+
     return {
         "message": "Health record added successfully",
-        "record_id": record_data["record_id"]
+        "record_id": record_data["record_id"],
+        "change_direction": "new",
+        "delta": None,
+        "overwritten": False,
     }
 
 

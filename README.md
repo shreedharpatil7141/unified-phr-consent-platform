@@ -1,33 +1,38 @@
-# Unified PHR
+# Unified Personal Health Record (PHR)
 
-This repository implements a **Unified Personal Health Record (PHR)** application featuring data orchestration, consent management (ABDM artefact), analytics, and notifications.  The system is composed of:
+This repository contains a multi-app implementation of a Unified PHR platform aligned to ABDM-style consent workflows.
 
-- **Backend** (FastAPI + MongoDB) providing APIs for authentication, health data ingestion, consent flows, analytics, alerts, and notifications.
-- **Doctor dashboard** (React) allowing clinicians to request consents, view patient timelines, and receive notifications.
-- **Patient app** (Flutter) enabling users to upload records, manage consents, view health timelines, and see alerts/notifications.
+## Project Structure
 
-## Highlights
+- `backend/` - FastAPI + MongoDB APIs
+- `doctor-dashboard/` - React web app for doctors
+- `frontend/patient-app/` - Flutter app for patients
 
-* **Data orchestration** – ingest wearable JSON, FHIR bundles, labs (PDFs), manual entries.
-* **Normalization** – common health record schema with categories, metrics, timestamps.
-* **ABDM consent artefact** – granular/time‑bound access; doctors request, patients approve/reject, automatic expiry and revocation.
-* **Proactive analytics** – trend detection (e.g., rising resting heart rate) triggers alerts and notifications.
-* **Notifications** – users and doctors receive in‑app alerts about consent requests, approvals, revocations, and health warnings.
-* **File upload support** – PDF reports and documents stored and made available via secure URLs.
+## Current Feature Coverage
 
-## Getting Started
+- Unified health records from wearables, uploaded reports, and manual inputs
+- Normalized categories/domains/types across all data sources
+- Consent request/approve/reject/revoke flows with date range + access window controls
+- Doctor view with consent-filtered timeline/documents/vitals
+- 3-month trend alerts for sustained increasing heart-rate patterns
+- Appointment workflows (request, confirm slot, complete/cancel/delete closed)
+- Family profile linking and overview APIs
+- Patient and doctor audit visibility for data access activity
+- Notifications for consent, appointments, and alert events
 
-Backend:
+## Quick Start
+
+### Backend
 
 ```bash
 cd backend
 python -m venv venv
-venv\Scripts\activate  # Windows
+venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Frontend (doctor dashboard):
+### Doctor Dashboard
 
 ```bash
 cd doctor-dashboard
@@ -35,7 +40,7 @@ npm install
 npm start
 ```
 
-Mobile (patient app):
+### Patient App
 
 ```bash
 cd frontend/patient-app
@@ -43,5 +48,10 @@ flutter pub get
 flutter run
 ```
 
-The above instructions are an overview; see each subproject's README for more details.
- 
+## API Docs
+
+- Interactive docs: `http://localhost:8000/docs`
+- See also:
+  - `API_ENDPOINTS.md`
+  - `API_DOCUMENTATION.md`
+  - `TESTING_GUIDE.md`

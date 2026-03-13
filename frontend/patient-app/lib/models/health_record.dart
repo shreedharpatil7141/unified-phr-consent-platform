@@ -16,6 +16,8 @@ class HealthRecord {
   final String? hospitalName;
 
   String? previousValue;
+  String? changeDirection;
+  double? delta;
 
   HealthRecord({
     required this.id,
@@ -31,6 +33,8 @@ class HealthRecord {
     this.doctorName,
     this.hospitalName,
     this.previousValue,
+    this.changeDirection,
+    this.delta,
   });
 
 }

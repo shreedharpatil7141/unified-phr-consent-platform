@@ -66,6 +66,9 @@ class HealthRecordRepository {
             recordName: r["record_name"],
             doctorName: r["doctor"],
             hospitalName: r["hospital"],
+            previousValue: r["previous_value"]?.toString(),
+            changeDirection: r["change_direction"]?.toString(),
+            delta: (r["delta"] is num) ? (r["delta"] as num).toDouble() : double.tryParse("${r["delta"] ?? ""}"),
           ),
         );
 
