@@ -4,7 +4,7 @@ anyio==4.12.1
 # bcrypt 5.0.0 has caused an AttributeError due to missing __about__ attribute when
 # used by passlib. pinning to a known good release.
 bcrypt==4.0.1
-certifi==2026.2.15
+certifi
 click==8.3.1
 colorama==0.4.6
 dnspython==2.8.0
