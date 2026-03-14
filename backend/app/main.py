@@ -43,3 +43,13 @@ app.include_router(admin_router)
 app.include_router(family_router)
 app.include_router(appointment_router)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
+
+
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "unified-phr-backend"}
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "healthy"}
