@@ -85,13 +85,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       });
     }
 
-    final watchData = await buildSmartwatchRecords();
-    HealthRecordRepository.setWatchRecords(watchData);
-    await HealthRecordRepository.loadFromServer();
-
-    final consentData = await ApiService.getMyConsents();
-    final fetchedNotifications = await ApiService.getNotifications();
-    await refreshVitalsSyncStatus();
+    // Load backend-backed UI data first so Home renders fast.
+    await Future.wait([
+      HealthRecordRepository.loadFromServer(),
+      refreshVitalsSyncStatus(),
+    ]);
+    final consentDataFuture = ApiService.getMyConsents();
+    final notificationsFuture = ApiService.getNotifications();
+    final consentData = await consentDataFuture;
+    final fetchedNotifications = await notificationsFuture;
 
     final serverRecords = HealthRecordRepository.getAllRecords()..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
@@ -119,8 +121,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       loading = false;
     });
 
-    unawaited(syncWatchRecordsToBackend(watchData));
+    // Health Connect fetch + sync runs in background to avoid blocking first paint.
+    unawaited(_refreshFromWatchInBackground());
     _isRefreshing = false;
+  }
+
+  Future<void> _refreshFromWatchInBackground() async {
+    try {
+      final watchData = await buildSmartwatchRecords();
+      HealthRecordRepository.setWatchRecords(watchData);
+      await syncWatchRecordsToBackend(watchData);
+      await HealthRecordRepository.loadFromServer();
+      if (!mounted) return;
+      setState(() {
+        records = HealthRecordRepository.getAllRecords()
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      });
+    } catch (_) {
+      // Keep Home responsive even if wearable sync fails/slow.
+    }
   }
 
   Future<void> refreshVitalsSyncStatus() async {
@@ -465,10 +484,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               physics: const NeverScrollableScrollPhysics(),
               childAspectRatio: 1.6,
               children: [
-                _VitalCard(title: "Heart Rate", value: getLatestValue("Heart Rate"), unit: "BPM"),
-                _VitalCard(title: "Steps", value: getLatestValue("Steps"), unit: "steps"),
-                _VitalCard(title: "Distance", value: getLatestValue("Distance"), unit: "km"),
-                _VitalCard(title: "Sleep", value: getLatestValue("Sleep"), unit: "hrs"),
+                _VitalCard(title: "Heart Rate (Latest)", value: getLatestValue("Heart Rate"), unit: "BPM"),
+                _VitalCard(title: "Steps (Today)", value: getLatestValue("Steps"), unit: "steps"),
+                _VitalCard(title: "Distance (Today)", value: getLatestValue("Distance"), unit: "km"),
+                _VitalCard(title: "Sleep (Today)", value: getLatestValue("Sleep"), unit: "hrs"),
               ],
             ),
             const SizedBox(height: 16),

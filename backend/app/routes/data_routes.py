@@ -52,11 +52,11 @@ REQUEST_TERM_ALIASES = {
         "domains": ["wellness"],
     },
     "cardiology": {
-        "categories": ["lab_report", "lab_reports", "vitals"],
+        "categories": ["lab_report", "lab_reports"],
         "domains": ["cardiology", "cardiac"],
     },
     "cardiac": {
-        "categories": ["lab_report", "lab_reports", "vitals"],
+        "categories": ["lab_report", "lab_reports"],
         "domains": ["cardiac", "cardiology"],
     },
     "hematology": {
@@ -172,13 +172,6 @@ def _matches_requested_term(record, term: str) -> bool:
         return (
             domain in {"cardiac", "cardiology"}
             or ("ecg" in searchable or "echo" in searchable or "cholesterol" in searchable or "lipid" in searchable or "troponin" in searchable)
-            or (
-                not has_file and (
-                    category == "vitals"
-                    or source in {"wearable", "manual"}
-                    or record_type in {"heart rate", "heart_rate", "ecg", "pulse rate", "pulse_rate"}
-                )
-            )
         )
 
     if term in {"hematology", "radiology", "metabolic", "renal", "hepatic", "respiratory"}:

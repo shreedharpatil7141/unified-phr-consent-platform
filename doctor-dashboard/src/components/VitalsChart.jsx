@@ -21,39 +21,56 @@ ChartJS.register(
   Filler
 );
 
-const METRIC_PRIORITY = [
-  { keys: ["heart_rate", "heart rate", "pulse_rate", "pulse rate"], label: "Heart Rate", unit: "bpm", color: "#ef5d78" },
-  { keys: ["steps"], label: "Steps", unit: "steps", color: "#22c55e" },
-  { keys: ["distance"], label: "Distance", unit: "km", color: "#facc15" },
-  { keys: ["spo2", "oxygen saturation"], label: "SpO2", unit: "%", color: "#06b6d4" },
-  { keys: ["temperature", "body temperature"], label: "Temperature", unit: "C", color: "#f97316" },
-  { keys: ["weight"], label: "Weight", unit: "kg", color: "#8b5cf6" },
-];
+const HEART_RATE_METRIC = {
+  keys: ["heart_rate", "heart rate", "heart-rate", "heartrate", "pulse_rate", "pulse rate", "pulse-rate", "hr"],
+  label: "Heart Rate",
+  unit: "bpm",
+  color: "#ef5d78",
+};
 
 const isFiniteNumber = (value) => Number.isFinite(Number(value));
+const normalizeKey = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[_-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+const parseNumericValue = (value) => {
+  if (value == null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const match = String(value).match(/-?\d+(\.\d+)?/);
+  if (!match) return null;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const resolveTimestamp = (record) =>
+  record.timestamp || record.recorded_at || record.created_at || record.updated_at || null;
 
 const extractMetricEntry = (record) => {
-  const recordType = (record.record_type || record.type || "").toLowerCase();
+  const recordType = normalizeKey(record.record_type || record.type);
 
-  for (const metric of METRIC_PRIORITY) {
+  for (const metric of [HEART_RATE_METRIC]) {
+    const metricKeys = metric.keys.map(normalizeKey);
     if (Array.isArray(record.metrics)) {
       const matchedMetric = record.metrics.find((item) =>
-        metric.keys.includes((item.name || "").toLowerCase())
+        metricKeys.includes(normalizeKey(item.name))
       );
-      if (matchedMetric?.value != null && isFiniteNumber(matchedMetric.value)) {
+      const parsedMetricValue = parseNumericValue(matchedMetric?.value);
+      if (parsedMetricValue != null && isFiniteNumber(parsedMetricValue)) {
         return {
           metric,
-          value: Number(matchedMetric.value),
-          timestamp: record.timestamp,
+          value: parsedMetricValue,
+          timestamp: resolveTimestamp(record),
         };
       }
     }
 
-    if (metric.keys.includes(recordType) && record.value != null && isFiniteNumber(record.value)) {
+    const parsedRecordValue = parseNumericValue(record.value);
+    if (metricKeys.includes(recordType) && parsedRecordValue != null && isFiniteNumber(parsedRecordValue)) {
       return {
         metric,
-        value: Number(record.value),
-        timestamp: record.timestamp,
+        value: parsedRecordValue,
+        timestamp: resolveTimestamp(record),
       };
     }
   }
@@ -132,9 +149,7 @@ const VitalsChart = ({ records, emptyMessage }) => {
     .map(extractMetricEntry)
     .filter(Boolean);
 
-  const selectedMetric = METRIC_PRIORITY.find((metric) =>
-    extracted.some((entry) => entry.metric.label === metric.label)
-  );
+  const selectedMetric = extracted.length ? HEART_RATE_METRIC : null;
 
   if (!selectedMetric) {
     return (
@@ -149,14 +164,36 @@ const VitalsChart = ({ records, emptyMessage }) => {
           padding: "0 24px",
         }}
       >
-        {emptyMessage || "No shared vitals available for this consent"}
+        {emptyMessage || "No shared heart-rate data available for this consent"}
       </div>
     );
   }
 
   const metricRecords = extracted
     .filter((entry) => entry.metric.label === selectedMetric.label)
+    .filter((entry) => {
+      const ts = parseServerDate(entry.timestamp);
+      return !Number.isNaN(ts.getTime());
+    })
     .sort((a, b) => parseServerDate(a.timestamp) - parseServerDate(b.timestamp));
+
+  if (!metricRecords.length) {
+    return (
+      <div
+        style={{
+          height: "300px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#6b7280",
+          textAlign: "center",
+          padding: "0 24px",
+        }}
+      >
+        No valid heart-rate timeline points found for this consent.
+      </div>
+    );
+  }
 
   const values = metricRecords.map((entry) => entry.value);
   const latestValue = values[values.length - 1];

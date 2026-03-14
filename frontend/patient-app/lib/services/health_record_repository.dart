@@ -11,6 +11,14 @@ class HealthRecordRepository {
     return type.toLowerCase().replaceAll(" ", "_");
   }
 
+  static Set<String> _typeAliases(String type) {
+    final normalized = _normalizeType(type);
+    if (normalized == "heart_rate" || normalized == "pulse_rate") {
+      return {"heart_rate", "pulse_rate"};
+    }
+    return {normalized};
+  }
+
   static bool _isLocalWatchSource(String source) {
     final normalized = source.toLowerCase();
     return normalized == "smartwatch";
@@ -132,11 +140,11 @@ class HealthRecordRepository {
       String type,
       DateTime startDate
   ) {
-    final normalizedType = _normalizeType(type);
+    final acceptedTypes = _typeAliases(type);
 
     return _mergedDeduplicatedRecords().where((r) =>
-        _normalizeType(r.type) == normalizedType &&
-        r.timestamp.isAfter(startDate)
+        acceptedTypes.contains(_normalizeType(r.type)) &&
+        !r.timestamp.isBefore(startDate)
     ).toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 

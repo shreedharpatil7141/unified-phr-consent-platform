@@ -139,7 +139,7 @@ const PatientDashboard = () => {
     toTimestamp(dashboardData.consent_expires_at) <= nowTs;
 
   const vitalsEmptyMessage = allowedCategories.some((category) =>
-    ["vitals", "cardiology", "cardiac"].includes((category || "").toLowerCase())
+    ["vitals"].includes((category || "").toLowerCase())
   )
     ? "No synced vital readings are available in the currently shared consent window."
     : `This consent is scoped to ${consentScope} and does not include vitals.`;

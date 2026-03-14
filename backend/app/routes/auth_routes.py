@@ -3,7 +3,6 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.config.database import db
 from app.schemas.user_schema import UserRegister
 from app.core.security import hash_password, verify_password, create_access_token
-from datetime import timedelta
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -72,8 +71,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
     access_token = create_access_token(
-        data={"sub": db_user["email"], "role": db_user["role"]},
-        expires_delta=timedelta(minutes=60)
+        data={"sub": db_user["email"], "role": db_user["role"]}
     )
 
     return {

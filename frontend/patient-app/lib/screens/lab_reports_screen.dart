@@ -97,13 +97,13 @@ class _LabReportsPageState extends State<LabReportsPage> {
             child: Row(
               children: [
 
-                filterChip("all","All"),
-                filterChip("cardiac","Cardiac"),
-                filterChip("metabolic","Metabolic"),
-                filterChip("renal","Renal"),
-                filterChip("hematology","Hematology"),
-                filterChip("radiology","Radiology"),
-                filterChip("respiratory","Respiratory"),
+                filterChip("all", "All", icon: Icons.apps),
+                filterChip("cardiac", "Cardiac", icon: Icons.favorite),
+                filterChip("metabolic", "Metabolic", icon: Icons.local_fire_department),
+                filterChip("renal", "Renal", icon: Icons.water_drop),
+                filterChip("hematology", "Hematology", icon: Icons.bloodtype),
+                filterChip("radiology", "Radiology", icon: Icons.monitor_heart),
+                filterChip("respiratory", "Respiratory", icon: Icons.air),
 
               ],
             ),
@@ -205,13 +205,22 @@ class _LabReportsPageState extends State<LabReportsPage> {
     );
   }
 
-  Widget filterChip(String value, String label){
+  Widget filterChip(String value, String label, {IconData? icon}) {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
 
       child: ChoiceChip(
-        label: Text(label),
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 16, color: selectedDomain == value ? Colors.white : Colors.redAccent),
+              const SizedBox(width: 6),
+            ],
+            Text(label),
+          ],
+        ),
         selected: selectedDomain == value,
 
         onSelected: (v){

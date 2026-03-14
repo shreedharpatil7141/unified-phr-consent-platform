@@ -6,7 +6,7 @@ class ApiService {
 
   static const baseUrl = String.fromEnvironment(
     "API_BASE_URL",
-    defaultValue: "http://192.168.0.102:8000",
+    defaultValue: "http://192.168.137.6:8000",
   );
 
   //////////////////////////////////////////////////////
@@ -137,6 +137,9 @@ class ApiService {
   }) async {
 
     String? token = await getToken();
+    if (token == null || token.isEmpty) {
+      throw Exception("Session expired. Please login again.");
+    }
 
     var request = http.MultipartRequest(
       "POST",
@@ -183,6 +186,10 @@ class ApiService {
 
     print("UPLOAD STATUS: ${response.statusCode}");
     print("UPLOAD BODY: $responseBody");
+
+    if (response.statusCode == 401) {
+      throw Exception("Unauthorized: session expired. Please login again.");
+    }
 
     if (response.statusCode != 200) {
       throw Exception("Upload failed: $responseBody");
@@ -447,6 +454,8 @@ class ApiService {
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
+    } else if (response.statusCode == 401) {
+      throw Exception("Unauthorized: session expired. Please login again.");
     } else {
       throw Exception("Failed to fetch consents");
     }

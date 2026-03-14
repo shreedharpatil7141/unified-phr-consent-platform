@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, Clock3, FileCheck2, Trash2 } from "lucide-react";
+import { CalendarClock, Clock3, FileCheck2, HeartPulse, Trash2 } from "lucide-react";
 
 import ConsentTimer from "../components/ConsentTimer";
 import {
@@ -12,18 +12,18 @@ import "../styles/dashboard.css";
 import { formatServerDate, formatServerDateTime, toTimestamp } from "../utils/dateTime";
 
 const CATEGORY_OPTIONS = [
-  { label: "Cardiac", value: "cardiac" },
-  { label: "Metabolic", value: "metabolic" },
-  { label: "Renal", value: "renal" },
-  { label: "Hepatic", value: "hepatic" },
-  { label: "Hematology", value: "hematology" },
-  { label: "Respiratory", value: "respiratory" },
-  { label: "General Wellness", value: "wellness" },
-  { label: "Radiology", value: "radiology" },
-  { label: "Lab Reports", value: "lab_report" },
-  { label: "Prescriptions", value: "prescription" },
-  { label: "Vaccines", value: "vaccination" },
-  { label: "Vitals", value: "vitals" },
+  { label: "Cardiac", value: "cardiac", icon: "heart", emoji: "❤" },
+  { label: "Metabolic", value: "metabolic", emoji: "🔥" },
+  { label: "Renal", value: "renal", emoji: "💧" },
+  { label: "Hepatic", value: "hepatic", emoji: "🩺" },
+  { label: "Hematology", value: "hematology", emoji: "🩸" },
+  { label: "Respiratory", value: "respiratory", emoji: "🫁" },
+  { label: "General Wellness", value: "wellness", emoji: "🌿" },
+  { label: "Radiology", value: "radiology", emoji: "🖼" },
+  { label: "Lab Reports", value: "lab_report", emoji: "🧪" },
+  { label: "Prescriptions", value: "prescription", emoji: "💊" },
+  { label: "Vaccines", value: "vaccination", emoji: "💉" },
+  { label: "Vitals", value: "vitals", emoji: "📈" },
 ];
 
 const EMPTY_COUNTS = { pending: 0, active: 0, expired: 0 };
@@ -338,7 +338,14 @@ const ConsentRequests = () => {
                 className={`consent-scope-chip ${checked ? "consent-scope-chip-active" : ""}`}
                 onClick={() => toggleCategory(option.value)}
               >
-                {option.label}
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                  {option.icon === "heart" ? (
+                    <HeartPulse size={16} />
+                  ) : (
+                    <span style={{ fontSize: "14px", lineHeight: 1 }}>{option.emoji || "•"}</span>
+                  )}
+                  <span>{option.label}</span>
+                </span>
               </button>
             );
           })}

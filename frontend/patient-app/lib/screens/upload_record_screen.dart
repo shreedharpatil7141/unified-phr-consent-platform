@@ -130,42 +130,90 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
 
                   DropdownMenuItem(
                     value: "cardiac",
-                    child: Text("Cardiac"),
+                    child: Row(
+                      children: [
+                        Icon(Icons.favorite, color: Colors.redAccent, size: 18),
+                        SizedBox(width: 8),
+                        Text("Cardiac"),
+                      ],
+                    ),
                   ),
 
                   DropdownMenuItem(
                     value: "metabolic",
-                    child: Text("Metabolic"),
+                    child: Row(
+                      children: [
+                        Icon(Icons.local_fire_department, color: Colors.deepOrange, size: 18),
+                        SizedBox(width: 8),
+                        Text("Metabolic"),
+                      ],
+                    ),
                   ),
 
                   DropdownMenuItem(
                     value: "renal",
-                    child: Text("Renal"),
+                    child: Row(
+                      children: [
+                        Icon(Icons.water_drop, color: Colors.blue, size: 18),
+                        SizedBox(width: 8),
+                        Text("Renal"),
+                      ],
+                    ),
                   ),
 
                   DropdownMenuItem(
                     value: "hepatic",
-                    child: Text("Hepatic"),
+                    child: Row(
+                      children: [
+                        Icon(Icons.medical_services, color: Colors.amber, size: 18),
+                        SizedBox(width: 8),
+                        Text("Hepatic"),
+                      ],
+                    ),
                   ),
 
                   DropdownMenuItem(
                     value: "hematology",
-                    child: Text("Hematology"),
+                    child: Row(
+                      children: [
+                        Icon(Icons.bloodtype, color: Colors.red, size: 18),
+                        SizedBox(width: 8),
+                        Text("Hematology"),
+                      ],
+                    ),
                   ),
 
                   DropdownMenuItem(
                     value: "radiology",
-                    child: Text("Radiology"),
+                    child: Row(
+                      children: [
+                        Icon(Icons.monitor_heart, color: Colors.teal, size: 18),
+                        SizedBox(width: 8),
+                        Text("Radiology"),
+                      ],
+                    ),
                   ),
 
                   DropdownMenuItem(
                     value: "respiratory",
-                    child: Text("Respiratory"),
+                    child: Row(
+                      children: [
+                        Icon(Icons.air, color: Colors.cyan, size: 18),
+                        SizedBox(width: 8),
+                        Text("Respiratory"),
+                      ],
+                    ),
                   ),
 
                   DropdownMenuItem(
                     value: "wellness",
-                    child: Text("General Wellness"),
+                    child: Row(
+                      children: [
+                        Icon(Icons.spa, color: Colors.green, size: 18),
+                        SizedBox(width: 8),
+                        Text("General Wellness"),
+                      ],
+                    ),
                   ),
 
                 ],
