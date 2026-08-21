@@ -5,14 +5,14 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /docs
+    healthCheckPath: /healthz
     envVars:
       - key: DB_NAME
         value: phr_app
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "10080"
       - key: OPENAI_MODEL
-        value: gpt-5-mini
+        value: gpt-4o-mini
       - key: MONGO_URI
         sync: false
       - key: OPENAI_API_KEY
