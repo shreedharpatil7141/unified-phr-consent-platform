@@ -71,14 +71,17 @@ const PatientDashboard = () => {
     return () => clearInterval(ticker);
   }, []);
 
-  const dashboardData = data || { records: [] };
-  const accessError = String(dashboardData.message || "").toLowerCase().includes("access window not started");
-  const records = dashboardData.records || [];
+  const dashboardData = useMemo(() => data || { records: [] }, [data]);
+  const accessError = useMemo(
+    () => String(dashboardData.message || "").toLowerCase().includes("access window not started"),
+    [dashboardData.message]
+  );
+  const records = useMemo(() => dashboardData.records || [], [dashboardData.records]);
   const patientEmail = dashboardData.patient_id;
-  const patientProfile = dashboardData.patient_profile || {};
-  const allowedCategories = dashboardData.allowed_categories || [];
-  const documents = records.filter((record) => !!(record.file_url || record.file_name));
-  const vitals = records.filter((record) => !(record.file_url || record.file_name));
+  const patientProfile = useMemo(() => dashboardData.patient_profile || {}, [dashboardData.patient_profile]);
+  const allowedCategories = useMemo(() => dashboardData.allowed_categories || [], [dashboardData.allowed_categories]);
+  const documents = useMemo(() => records.filter((record) => !!(record.file_url || record.file_name)), [records]);
+  const vitals = useMemo(() => records.filter((record) => !(record.file_url || record.file_name)), [records]);
 
   const groupedRecordCount = useMemo(() => {
     let count = 0;

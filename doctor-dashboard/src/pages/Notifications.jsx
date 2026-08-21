@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Bell, CheckCheck, Trash2 } from "lucide-react";
 
 import {
@@ -22,7 +22,7 @@ const Notifications = () => {
     window.dispatchEvent(new Event("notifications:changed"));
   };
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -34,11 +34,11 @@ const Notifications = () => {
       setLoading(false);
       publishNotificationChange();
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadNotifications();
-  }, []);
+  }, [loadNotifications]);
 
   const handleMarkRead = async (id) => {
     const previousNotes = notes;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ShieldCheck, Users, CircleCheck, CircleOff, CalendarClock } from "lucide-react";
 
 import { getDoctorAppointments, getMyAccessAudit } from "../services/doctorService";
@@ -16,7 +16,7 @@ const AuditLogs = () => {
     cancelled: 0,
   });
 
-  const loadAudit = async () => {
+  const loadAudit = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -49,11 +49,11 @@ const AuditLogs = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [daysBack]);
 
   useEffect(() => {
     loadAudit();
-  }, [daysBack]);
+  }, [loadAudit]);
 
   const byPatient = useMemo(() => {
     const entries = Object.entries(summary?.by_patient || {});
