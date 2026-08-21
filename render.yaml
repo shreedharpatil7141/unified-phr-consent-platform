@@ -2,7 +2,6 @@ services:
   - type: web
     name: unified-phr-backend
     env: python
-    plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
@@ -22,7 +21,6 @@ services:
   - type: web
     name: unified-phr-doctor-dashboard
     env: static
-    plan: free
     rootDir: doctor-dashboard
     buildCommand: npm ci && npm run build
     staticPublishPath: build
