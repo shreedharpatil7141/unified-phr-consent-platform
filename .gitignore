@@ -19,12 +19,17 @@ ios/.symlinks/
 ios/Flutter/Flutter.framework
 ios/Flutter/App.framework
 
+# React / Web
+node_modules/
+doctor-dashboard/node_modules/
+doctor-dashboard/build/
+
 # IDE
 .vscode/
 .idea/
 *.iml
 
-# Logs
+# Logs & temp
 *.log
 *.tmp
 
@@ -41,6 +46,9 @@ __pycache__/
 *.pyd
 venv/
 .venv/
+venv312/
+backend/venv/
+backend/backend/
 
 # Large / generated files
 *.apk
